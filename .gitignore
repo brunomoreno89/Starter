@@ -1,0 +1,30 @@
+# Build do .NET
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+
+# Publicação
+*.pubxml
+*.Publish.xml
+
+# Config local
+appsettings.Development.json
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Node.js / frontend
+node_modules/
+dist/
+build/

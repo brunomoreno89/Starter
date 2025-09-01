@@ -1,0 +1,17 @@
+
+{
+  "$schema": "http://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "Starter.Api": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "http://localhost:5073",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "JWT_SECRET": "70Opt8oCiwdynVXaHXvlNWd4UgZ8Uq8ieJn2YBUXsCoZsGeZ0IYFP8JHTwm9Bzbf",
+        "MYSQL_CONNECTION_STRING": "server=localhost;port=3306;user=root;password=ASNpwr#1989!@;database=starterdb;"
+      }
+    }
+  }
+}

@@ -11,12 +11,14 @@ public class AppDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<Item> Items => Set<Item>();
     public DbSet<LogEntry> Logs => Set<LogEntry>();
+    public DbSet<SysDates> SysDates => Set<SysDates>();
 
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
-
+    public DbSet<RevokedAccessToken> RevokedAccessTokens => Set<RevokedAccessToken>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>(); // opcional
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,7 +31,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Item>(entity =>
         {
             entity.Property(i => i.Name).IsRequired().HasMaxLength(120);
-            entity.Property(i => i.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+            //entity.Property(i => i.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
         });
 
         modelBuilder.Entity<LogEntry>(e =>
@@ -59,5 +61,18 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<Role>().HasIndex(x => x.Name).IsUnique();
         modelBuilder.Entity<Permission>().HasIndex(x => x.Name).IsUnique();
+
+        base.OnModelCreating(modelBuilder);
+
+        // índices
+        modelBuilder.Entity<RevokedAccessToken>()
+            .HasIndex(x => x.Jti)
+            .IsUnique();
+
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(x => new { x.UserId, x.TokenHash })
+            .IsUnique();
     }
+
+    
 }

@@ -17,6 +17,7 @@ using Starter.Api.Models;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+builder.Services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
 // Serilog
 builder.Host.UseSerilog((ctx, lc) => lc
@@ -65,6 +66,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddScoped<PasswordHasher>();
+//builder.Services.AddScoped<ITokenService, TokenService>();
 
 
 var app = builder.Build();

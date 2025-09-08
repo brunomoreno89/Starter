@@ -9,25 +9,6 @@ function parseJwt(token){
     return JSON.parse(payload || '{}') || {};
   }catch{ return {}; }
 }
-/*
-function rolesFromPayload(p){
-  if (!p) return [];
-  const msRole = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";
-  let roles = [];
-  if (Array.isArray(p.role)) roles = p.role;
-  else if (typeof p.role === 'string') roles = [p.role];
-  else if (Array.isArray(p.roles)) roles = p.roles;
-  else if (p[msRole]) roles = Array.isArray(p[msRole]) ? p[msRole] : [p[msRole]];
-  return [...new Set(roles.map(r=>String(r).trim()))].filter(Boolean);
-}
-function permsFromPayload(p){
-  if (!p) return [];
-  if (Array.isArray(p.perms)) return p.perms;
-  if (typeof p.perms === 'string') { try { const a = JSON.parse(p.perms); if (Array.isArray(a)) return a; } catch{} }
-  return [];
-}
-  */
-
 
 // Helpers (use em api.js)
 function rolesFromPayload(p){
@@ -85,55 +66,6 @@ function isTokenExpired(token){
 // ---- Config ----
 function basePath(){ try{ return new URL(document.baseURI).pathname.replace(/\/$/,'')||'' }catch{ return '' } }
 export const cfg = { get baseUrl(){ return localStorage.getItem('baseUrl') || `${basePath()}/api`; }, set baseUrl(v){ localStorage.setItem('baseUrl', v); } };
-
-// ---- Auth session ----
-/*
-export const auth = {
-  saveToken(raw){
-    const clean = (raw || '').replace(/^Bearer\s+/i, '').trim();   // <-- remove "Bearer "
-    localStorage.setItem('token', clean);
-  },
-  get token(){
-    const t = localStorage.getItem('token') || '';
-    return t.replace(/^Bearer\s+/i, '').trim();                     // <-- sanitize ao ler
-  },
-  get claims(){ return parseJwt(this.token); },
-  get exp(){ const { exp } = this.claims || {}; return typeof exp==='number' ? exp : null; },
-  isExpired(){ if(!this.token) return true; if(!this.exp) return false; return Date.now() >= this.exp*1000; },
-
-  // roles/perms robustos
-  roles(){
-    const c=this.claims||{};
-    const std=c['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
-    const alt=c['role'];
-    const out=[];
-    if (Array.isArray(std)) out.push(...std); else if (std) out.push(std);
-    if (Array.isArray(alt)) out.push(...alt); else if (alt) out.push(alt);
-    const j=c['roles']; // pode vir como JSON string
-    if (typeof j==='string') { try{ const arr=JSON.parse(j); if(Array.isArray(arr)) out.push(...arr); }catch{} }
-    return Array.from(new Set(out));
-  },
-  hasRole(...names){ const rs=this.roles(); return rs.some(r => names.includes(r)); },
-
-  perms(){
-    const c=this.claims||{};
-    let p = c['perm'] ?? c['perms'];
-    if (!p) return [];
-    if (Array.isArray(p)) return p;
-    if (typeof p === 'string') {
-      try { const arr = JSON.parse(p); if (Array.isArray(arr)) return arr; } catch {}
-      return p.split(',').map(s=>s.trim()).filter(Boolean);
-    }
-    if (typeof p === 'object') { try { return Object.values(p).map(String); } catch{} }
-    return [];
-  },
-  hasPerm(name){ try { return this.perms().includes(name); } catch { return false; } },
-
-  clear(){ localStorage.removeItem('token'); }
-};
-
-export function isSessionValid(){ return !!auth.token && !auth.isExpired(); }
-*/
 
 // ---- Helpers genéricos para normalizar arrays/strings/CSV/JSON ----
 function _collect(out, v) {

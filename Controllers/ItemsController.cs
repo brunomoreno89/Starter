@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Starter.Api.Data;
 using Starter.Api.DTOs.Items;
 using Starter.Api.Models;
+using Starter.Api.Security;
 using Starter.Api.Services;      // IAuditLogger
 using System.Threading;          // CancellationToken
 
@@ -17,22 +18,48 @@ public class ItemsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IAuditLogger _audit;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public ItemsController(AppDbContext db, IAuditLogger audit)
+    public ItemsController(AppDbContext db, IAuditLogger audit, IDateTimeProvider dateTimeProvider)
     {
         _db = db;
         _audit = audit;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     [Authorize(Policy = "Perm:Items.Read")]
     [HttpGet]
-    public async Task<IEnumerable<ItemDto>> GetAll(CancellationToken ct)
+    public async Task<ActionResult<IEnumerable<ItemDto>>> List(CancellationToken ct)
     {
-        return await _db.Items
+        // 1) carrega todos os nomes (Id -> DisplayName) de uma vez
+        var names = await _db.Users
             .AsNoTracking()
-            .Select(i => new ItemDto { Id = i.Id, Name = i.Name, Description = i.Description })
+            .Select(x => new { x.Id, Display = x.Name ?? x.Username })
+            .ToDictionaryAsync(x => x.Id, x => x.Display, ct);
+
+        // 2) carrega usuários
+        var item = await _db.Items
+            .AsNoTracking()
+            .OrderBy(u => u.Id)
             .ToListAsync(ct);
-    }
+
+        var result = item.Select(items => new ItemDto
+        {
+            Id = items.Id,
+            Name = items.Name,
+            Description    = items.Description,
+            Active         = items.Active,
+            CreatedAt     = items.CreatedAt,
+            UpdatedAt      = items.UpdatedAt,
+            CreatedByUserId = items.CreatedByUserId,
+            CreatedByName  = (items.CreatedByUserId.HasValue && names.TryGetValue(items.CreatedByUserId.Value, out var cName)) ? cName : null,
+            UpdatedByUserId = items.UpdatedByUserId,
+            UpdatedByName  = (items.UpdatedByUserId.HasValue && names.TryGetValue(items.UpdatedByUserId.Value, out var uName)) ? uName : null
+
+        }).ToList();
+
+        return Ok(result);
+    }   
 
     [Authorize(Policy = "Perm:Items.Read")]
     [HttpGet("{id:int}")]
@@ -62,7 +89,9 @@ public class ItemsController : ControllerBase
         {
             Name = dto.Name,
             Description = dto.Description,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = _dateTimeProvider.NowLocal,
+            Active = "Yes",
+            CreatedByUserId = User.TryGetUserId()
         };
 
         _db.Items.Add(entity);
@@ -96,7 +125,9 @@ public class ItemsController : ControllerBase
 
         entity.Name = dto.Name;
         entity.Description = dto.Description;
-        entity.UpdatedAt = DateTime.UtcNow;
+        entity.UpdatedAt = _dateTimeProvider.NowLocal;
+        entity.UpdatedByUserId = User.TryGetUserId(); 
+        entity.Active = dto.Active?.Trim();
 
         await _db.SaveChangesAsync(ct);
 
@@ -113,7 +144,9 @@ public class ItemsController : ControllerBase
         var entity = await _db.Items.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (entity == null) return NotFound();
 
-        _db.Items.Remove(entity);
+        entity.Active    = "No";
+        entity.UpdatedByUserId = User.TryGetUserId();
+        entity.UpdatedAt = _dateTimeProvider.NowLocal;
         await _db.SaveChangesAsync(ct);
 
         // Log

@@ -22,14 +22,14 @@ public class UsersController : ControllerBase
     private readonly AppDbContext _db;
     private readonly PasswordHasher _hasher;
     private readonly IAuditLogger _audit;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
-
-
-    public UsersController(AppDbContext db, PasswordHasher hasher, IAuditLogger audit)
+    public UsersController(AppDbContext db, PasswordHasher hasher, IAuditLogger audit, IDateTimeProvider dateTimeProvider)
     {
         _db = db;
         _hasher = hasher;
         _audit = audit;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     // GET /api/users
@@ -127,8 +127,6 @@ public class UsersController : ControllerBase
             if (!val.IsValid) return BadRequest(val.Errors);
         }
 
-       
-
         // Duplicidades
         if (await _db.Users.AnyAsync(x => x.Username == body.Username, ct))
             return Conflict("Username already in use.");
@@ -136,7 +134,6 @@ public class UsersController : ControllerBase
         if (await _db.Users.AnyAsync(x => x.Email == body.Email, ct))
             return Conflict("Email already in use.");
 
-        var nowUtc = DateTime.UtcNow;
         var creatorId = User.TryGetUserId(); 
 
         var user = new User
@@ -146,7 +143,7 @@ public class UsersController : ControllerBase
             Name = body.Name.Trim(),
             //Role     = role,
             PasswordHash = _hasher.Hash(body.Password),
-            CreationDt = nowUtc,
+            CreationDt = _dateTimeProvider.NowLocal,
             Active = "Yes",
             CreatedBy = creatorId
             
@@ -236,9 +233,11 @@ public class UsersController : ControllerBase
             user.Active = yes ? "Yes" : "No";
         }
 
+        var creatorId = User.TryGetUserId(); 
+
         // ---- Auditoria ----
         user.UpdatedBy = User.TryGetUserId();
-        user.UpdatedDt = DateTime.UtcNow;
+        user.UpdatedDt = _dateTimeProvider.NowLocal;
 
         await _db.SaveChangesAsync(ct);
         await _audit.LogAsync("Users.Update", $"Updated user {user.Username}", ct);
@@ -292,7 +291,7 @@ public class UsersController : ControllerBase
         // Soft delete + auditoria
         user.Active    = "No";
         user.UpdatedBy = User.TryGetUserId();
-        user.UpdatedDt = DateTime.UtcNow;
+        user.UpdatedDt = _dateTimeProvider.NowLocal;
 
         await _db.SaveChangesAsync(ct);
         await _audit.LogAsync("Users.Delete", $"Soft-deleted user {user.Username}", ct);

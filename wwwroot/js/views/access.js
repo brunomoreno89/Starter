@@ -126,7 +126,7 @@ async function renderUsers(pane){
             <th>Created By</th>
             <th>Update Dt</th>
             <th>Updated By</th>
-            <th style="width:110px; text-align:right;">Actions</th>
+            <th style="width:110px; text-align:right;"></th>
           </tr>
         </thead>
         <tbody id="uBody"></tbody>
@@ -175,7 +175,7 @@ async function renderUsers(pane){
               <input id="mUName" type="name" value="${(current.name||'').replace(/"/g,'&quot;')}">
               <label>Email</label>
               <input id="mUEmail" type="email" value="${(current.email||'').replace(/"/g,'&quot;')}">
-              <label for="mUActive">Status</label>
+              <label for="mUActive">Active</label>
               <select id="mUActive">
                 <option value="Yes" ${current.active === 'Yes' ? 'selected' : ''}>Yes</option>
                 <option value="No"  ${current.active === 'No'  ? 'selected' : ''}>No</option>
@@ -223,7 +223,7 @@ async function renderUsers(pane){
           <label>Complete Name</label><input id="mUName" placeholder="name">
           <label>Email</label><input id="nUEmail" type="email" placeholder="email@example.com">
           <label>Password</label><input id="nUPwd" type="password" placeholder="initial password">
-          <label for="nUActive">Status</label>
+          <label for="nUActive">Active</label>
             <select id="nUActive">
               <option value="Yes">Yes</option>
               <option value="No">No</option>
@@ -262,7 +262,19 @@ async function renderRoles(pane){
     </div>
     <div class="table-wrap">
       <table class="table">
-        <thead><tr><th>ID</th><th>Name</th><th>Description</th><th style="width:110px; text-align:right;">Actions</th></tr></thead>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Active</th>
+            <th>Creation Dt</th>
+            <th>Created By</th>
+            <th>Update Dt</th>
+            <th>Updated By</th>
+            <th style="width:110px; text-align:right;"></th>
+          </tr>
+          </thead>
         <tbody id="rBody"></tbody>
       </table>
     </div>
@@ -277,7 +289,14 @@ async function renderRoles(pane){
     for (const r of items){
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${r.id}</td><td>${r.name||''}</td><td>${r.description||''}</td>
+        <td>${r.id}</td>
+        <td>${r.name||''}</td>
+        <td>${r.description||''}</td>
+        <td>${r.active||''}</td>
+        <td>${formatDateToBR(r.creationDt)}</td>
+        <td>${r.createdByName ?? ''}</td>
+        <td>${formatDateToBR(r.updateDt)}</td>
+        <td>${r.updatedByName ?? ''}</td>
         <td style="text-align:right;">
           ${allowUpdate?`<button class="icon-btn" title="Edit" data-act="edit">${icon('edit')}</button>`:''}
           ${allowDelete?`<button class="icon-btn" title="Delete" data-act="del">${icon('trash')}</button>`:''}
@@ -290,13 +309,19 @@ async function renderRoles(pane){
               <label>Name</label>
               <input id="mRName" value="${(r.name||'').replace(/"/g,'&quot;')}">
               <label>Description</label>
-              <textarea id="mRDesc" rows="3">${r.description||''}</textarea>`;
+              <textarea id="mRDesc" rows="3">${r.description||''}</textarea>
+              <label for="mRActive">Active</label>
+              <select id="mRActive">
+                <option value="Yes" ${r.active === 'Yes' ? 'selected' : ''}>Yes</option>
+                <option value="No"  ${r.active === 'No'  ? 'selected' : ''}>No</option>
+              </select>`;
           },
           async ()=>{
             const name = document.getElementById('mRName').value.trim();
             const description = document.getElementById('mRDesc').value.trim();
+            const active = document.getElementById('mRActive').value.trim();
             if (!name) throw new Error('Name is required');
-            await updateRole(r.id, { id:r.id, name, description });
+            await updateRole(r.id, { id:r.id, name, description, active });
             showMsgFromPane(pane,'Role updated.'); await reload();
           },
           { confirmText: 'Save changes' }
@@ -362,7 +387,12 @@ async function renderPermissions(pane){
             <th style="width:72px;">ID</th>
             <th>Permission</th>
             <th>Description</th>
-            <th style="width:110px; text-align:right;">Actions</th>
+            <th>Active</th>
+            <th>Creation Dt</th>
+            <th>Created By</th>
+            <th>Update Dt</th>
+            <th>Updated By</th>
+            <th style="width:110px; text-align:right;"></th>
           </tr>
         </thead>
         <tbody id="pBody"></tbody>
@@ -420,6 +450,11 @@ async function renderPermissions(pane){
         <td>${p.id}</td>
         <td>${p.name || ''}</td>
         <td>${p.description || ''}</td>
+        <td>${p.active}</td>
+        <td>${formatDateToBR(p.creationDt)}</td>
+        <td>${p.createdByName ?? ''}</td>
+        <td>${formatDateToBR(p.updateDt)}</td>
+        <td>${p.updatedByName ?? ''}</td>
         <td style="text-align:right;">
           ${allowUpdate?`<button class="icon-btn" title="Edit" data-act="edit">${icon('edit')}</button>`:''}
           ${allowDelete?`<button class="icon-btn" title="Delete" data-act="del">${icon('trash')}</button>`:''}
@@ -434,13 +469,20 @@ async function renderPermissions(pane){
               <label>Name</label>
               <input id="mPName" value="${(p.name||'').replace(/"/g,'&quot;')}">
               <label>Description</label>
-              <textarea id="mPDesc" rows="3">${p.description||''}</textarea>`;
+              <textarea id="mPDesc" rows="3">${p.description||''}</textarea>
+              <label for="mPActive">Active</label>
+              <select id="mPActive">
+                <option value="Yes" ${p.active === 'Yes' ? 'selected' : ''}>Yes</option>
+                <option value="No"  ${p.active === 'No'  ? 'selected' : ''}>No</option>
+              </select>
+              `;
           },
           async ()=>{
             const name = document.getElementById('mPName').value.trim();
             const description = document.getElementById('mPDesc').value.trim();
+            const active = document.getElementById('mPActive').value.trim();
             if (!name) throw new Error('Name is required');
-            await updatePermission(p.id, { id:p.id, name, description });
+            await updatePermission(p.id, { id:p.id, name, description, active });
             await reload(); showMsgFromPane(pane,'Permission updated.');
           },
           { confirmText: 'Save changes' }

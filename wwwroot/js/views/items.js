@@ -1,6 +1,7 @@
 // wwwroot/js/views/items.js  (v5-modal-util + v4-pager-safe)
 import { listItems, createItem, updateItem, deleteItem, getItem, errorToString, auth } from '../api.js';
 import { getPageSize, paginate, renderPager } from '../ui/pager.js';
+import { formatDateToBR } from '../utils/date.js';
 import { openModal, openConfirm } from '../ui/modal.js';
 
 function icon(name){
@@ -43,7 +44,16 @@ export async function ItemsView(container){
     <div class="table-wrap">
       <table class="table">
         <thead>
-          <tr><th>ID</th><th>Name</th><th>Description</th><th style="width:110px; text-align:right;">Actions</th></tr>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Active</th>
+            <th>Created At</th>
+            <th>Created By</th>
+            <th>Updated At</th>
+            <th>Updated By</th>
+            <th style="width:110px; text-align:right;"></th></tr>
         </thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -87,6 +97,11 @@ export async function ItemsView(container){
         <td>${it.id}</td>
         <td>${it.name||''}</td>
         <td>${it.description||''}</td>
+        <td>${it.active||''}</td>
+        <td>${formatDateToBR(it.createdAt)}</td>
+        <td>${it.createdByName ?? ''}</td>
+        <td>${formatDateToBR(it.updatedAt)}</td>
+        <td>${it.updatedByName ?? ''}</td>
         <td style="text-align:right;">
           ${auth.hasPerm('Items.Update')?`<button class="icon-btn" title="Edit" data-act="edit">${icon('edit')}</button>`:''}
           ${auth.hasPerm('Items.Delete')?`<button class="icon-btn" title="Delete" data-act="del">${icon('trash')}</button>`:''}
@@ -102,13 +117,20 @@ export async function ItemsView(container){
               <label>Name</label>
               <input id="mName" value="${(current.name||'').replace(/"/g,'&quot;')}">
               <label>Description</label>
-              <textarea id="mDesc" rows="3">${current.description||''}</textarea>`;
+              <textarea id="mDesc" rows="3">${current.description||''}</textarea>
+              <label for="mActive">Active</label>
+              <select id="mActive">
+                <option value="Yes" ${current.active === 'Yes' ? 'selected' : ''}>Yes</option>
+                <option value="No"  ${current.active === 'No'  ? 'selected' : ''}>No</option>
+              </select>
+              `;
           },
           async ()=>{
             const name = document.getElementById('mName').value.trim();
             const description = document.getElementById('mDesc').value.trim();
+            const active = document.getElementById('mActive').value.trim();
             if (!name) throw new Error('Name is required');
-            await updateItem(it.id, { id: it.id, name, description });
+            await updateItem(it.id, { id: it.id, name, description, active });
             showMsg('Item updated.'); await refresh();
           },
           { confirmText: 'Save changes' }

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Starter.Api.Data;
 using Starter.Api.DTOs.Security;
 using Starter.Api.Models;
+using Starter.Api.Security;
 using Starter.Api.Services;      // <- IAuditLogger
 using System.Threading;          // <- CancellationToken
 
@@ -18,20 +19,49 @@ public class RolesController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IAuditLogger _audit;
+    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public RolesController(AppDbContext db, IAuditLogger audit)
+    public RolesController(AppDbContext db, IAuditLogger audit, IDateTimeProvider dateTimeProvider)
     {
         _db = db;
         _audit = audit;
+        _dateTimeProvider = dateTimeProvider;
     }
 
     [Authorize(Policy = "Perm:Roles.Read")]
     [HttpGet]
-    public async Task<IEnumerable<RoleDto>> GetAll(CancellationToken ct)
-        => await _db.Roles.AsNoTracking()
-            .OrderBy(r => r.Name)
-            .Select(r => new RoleDto { Id = r.Id, Name = r.Name, Description = r.Description })
+
+    public async Task<ActionResult<IEnumerable<RoleDto>>> List(CancellationToken ct)
+    {
+        // 1) carrega todos os nomes (Id -> DisplayName) de uma vez
+        var names = await _db.Users
+            .AsNoTracking()
+            .Select(x => new { x.Id, Display = x.Name ?? x.Username })
+            .ToDictionaryAsync(x => x.Id, x => x.Display, ct);
+
+        // 2) carrega usuários
+        var role = await _db.Roles
+            .AsNoTracking()
+            .OrderBy(u => u.Id)
             .ToListAsync(ct);
+
+        var result = role.Select(r => new RoleDto
+        {
+            Id = r.Id,
+            Name = r.Name,
+            Description    = r.Description,
+            Active         = r.Active,
+            CreationDt     = r.CreationDt,
+            CreatedBy      = r.CreatedBy,
+            CreatedByName  = (r.CreatedBy.HasValue && names.TryGetValue(r.CreatedBy.Value, out var cName)) ? cName : null,
+            UpdateDt        = r.UpdateDt,
+            UpdatedBy      = r.UpdatedBy,
+            UpdatedByName  = (r.UpdatedBy.HasValue && names.TryGetValue(r.UpdatedBy.Value, out var uName)) ? uName : null
+
+        }).ToList();
+
+        return Ok(result);
+    }        
 
     [Authorize(Policy = "Perm:Roles.Read")]
     [HttpGet("{id:int}")]
@@ -39,7 +69,12 @@ public class RolesController : ControllerBase
     {
         var r = await _db.Roles.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (r is null) return NotFound();
-        return new RoleDto { Id = r.Id, Name = r.Name, Description = r.Description };
+        return new RoleDto
+        {
+            Id = r.Id,
+            Name = r.Name,
+            Description = r.Description
+        };
     }
 
     [Authorize(Policy = "Perm:Roles.Create")]
@@ -66,7 +101,16 @@ public class RolesController : ControllerBase
         if (await _db.Roles.AsNoTracking().AnyAsync(x => x.Name == name, ct))
             return Conflict("Role name already exists.");
 
-        var entity = new Role { Name = name!, Description = desc };
+        var creatorId = User.TryGetUserId(); 
+
+        var entity = new Role
+        {
+            Name = name!,
+            Description = desc,
+            CreationDt = _dateTimeProvider.NowLocal,
+            Active = "Yes",
+            CreatedBy = creatorId
+        };
         _db.Roles.Add(entity);
         await _db.SaveChangesAsync(ct);
 
@@ -74,7 +118,15 @@ public class RolesController : ControllerBase
         await _audit.LogAsync("Roles.Create", $"Created role {entity.Name} (Id={entity.Id})", ct);
 
         return CreatedAtAction(nameof(GetOne), new { id = entity.Id },
-            new RoleDto { Id = entity.Id, Name = entity.Name, Description = entity.Description });
+            new RoleDto
+            {
+                Id = entity.Id,
+                Name = entity.Name,
+                Description = entity.Description,
+                Active = entity.Active,
+                CreationDt = entity.CreationDt,
+                CreatedBy = entity.CreatedBy
+            });
     }
 
     [Authorize(Policy = "Perm:Roles.Update")]
@@ -98,6 +150,7 @@ public class RolesController : ControllerBase
 
         var name = dto.Name?.Trim();
         var desc = dto.Description?.Trim();
+        var active = dto.Active?.Trim();
 
         if (string.IsNullOrWhiteSpace(name))
             return BadRequest("Name is mandatory.");
@@ -105,8 +158,14 @@ public class RolesController : ControllerBase
         var dup = await _db.Roles.AsNoTracking().AnyAsync(x => x.Id != id && x.Name == name, ct);
         if (dup) return Conflict("Role name already exists.");
 
+        var updateId = User.TryGetUserId(); 
+
         entity.Name = name!;
         entity.Description = desc;
+        entity.Active = active;
+        entity.UpdateDt = _dateTimeProvider.NowLocal;
+        entity.UpdatedBy = updateId;
+
         await _db.SaveChangesAsync(ct);
 
         // 🔎 Log
@@ -122,7 +181,9 @@ public class RolesController : ControllerBase
         var entity = await _db.Roles.FirstOrDefaultAsync(x => x.Id == id, ct);
         if (entity is null) return NotFound();
 
-        _db.Roles.Remove(entity);
+        entity.Active    = "No";
+        entity.UpdatedBy = User.TryGetUserId();
+        entity.UpdateDt = _dateTimeProvider.NowLocal;
         await _db.SaveChangesAsync(ct);
 
         // 🔎 Log

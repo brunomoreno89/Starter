@@ -117,4 +117,48 @@ public class AuthController : ControllerBase
 
         return NoContent();
     }
+
+    [Authorize]
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout(CancellationToken ct)
+    {
+        // Tenta identificar o usuário pelo mesmo padrão do ChangePassword
+        var username =
+            User.FindFirstValue(ClaimTypes.Name) ??
+            User.FindFirst(JwtRegisteredClaimNames.UniqueName)?.Value ??
+            User.FindFirst("unique_name")?.Value ??
+            User.Identity?.Name;
+
+        Starter.Api.Models.User? user = null;
+        int? userId = null;
+
+        if (!string.IsNullOrWhiteSpace(username))
+        {
+            user = await _db.Users.FirstOrDefaultAsync(u => u.Username == username, ct);
+            userId = user?.Id;
+        }
+        else
+        {
+            // fallback por ID (sub/nameidentifier)
+            var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ??
+                      User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (int.TryParse(sub, out var uid))
+            {
+                user = await _db.Users.FirstOrDefaultAsync(u => u.Id == uid, ct);
+                userId = user?.Id;
+            }
+        }
+
+        await _audit.LogAsync(
+            "Auth.Logout",
+            userId,
+            $"User '{username ?? "unknown"}' logged out",
+            ct);
+
+        // Do ponto de vista do backend, o logout está apenas registrado.
+        // Se você tiver lógica de revogar refresh token etc, coloca aqui.
+
+        return NoContent();
+    }
+
 }

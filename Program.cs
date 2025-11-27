@@ -19,12 +19,15 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
 
+
+
 // Serilog
 builder.Host.UseSerilog((ctx, lc) => lc
     .ReadFrom.Configuration(ctx.Configuration));
-
+/*
 // Configurations
 var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET") ?? "dev_secret_change_me";
+
 var connString = Environment.GetEnvironmentVariable("MYSQL_CONNECTION_STRING")
                  ?? "server=localhost;port=3306;user=root;password=YourPassword;database=starterdb;";
 
@@ -33,6 +36,58 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseMySQL(connString);
 });
+
+
+// Pode trocar o nome da env var se quiser (ex: SQLSERVER_CONNECTION_STRING)
+var connString = Environment.GetEnvironmentVariable("SQLSERVER_CONNECTION_STRING")
+                 ?? "Server=localhost,1433;Database=STARTERAPI;User Id=STARTERAPI_USER;Password=ASNpwr#1989!@;Encrypt=False;TrustServerCertificate=True;";
+
+// EF Core + SQL Server
+builder.Services.AddDbContext<AppDbContext>(options =>
+{
+    options.UseSqlServer(connString);
+});
+*/
+
+
+// Configurations
+var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET") ?? "dev_secret_change_me";
+
+// Adiciona o INI com as credenciais
+builder.Configuration.AddIniFile("Config/dbcredentials.ini", optional: false, reloadOnChange: true);
+var configuration = builder.Configuration;
+
+// Dados do banco vindos do appsettings.json
+var server = configuration["Database:Server"] ?? "localhost,1433";
+var database = configuration["Database:Name"] ?? "STARTERAPI";
+
+// Usuário e senha criptografada vindos do dbcredentials.ini
+var dbUser = configuration["Database:User"];
+var encryptedPassword = configuration["Database:PasswordEncrypted"];
+
+// Chave de criptografia (ideal: vir de variável de ambiente)
+var encryptionKey = Environment.GetEnvironmentVariable("DB_ENC_KEY")
+                    ?? "X7p2!dA9qW3$rT8bF1zM0vK4sE6gH5uL"; // DEV ONLY, trocar em prod
+
+
+if (builder.Environment.IsDevelopment())
+{
+    var plainPassword = "ASNpwr#1989!@"; // SUA SENHA REAL DO SQL SERVER AQUI
+    var encrypted = CryptoHelper.Encrypt(plainPassword, encryptionKey);
+    Console.WriteLine($"[DEV] Senha criptografada para colocar no INI: {encrypted}");
+}
+
+var dbPassword = CryptoHelper.Decrypt(encryptedPassword, encryptionKey);
+
+// Monta a connection string final
+var connString = $"Server={server};Database={database};User Id={dbUser};Password={dbPassword};Encrypt=False;TrustServerCertificate=True;";
+
+// EF Core + SQL Server
+builder.Services.AddDbContext<AppDbContext>(options =>
+{
+    options.UseSqlServer(connString);
+});
+
 
 JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
 

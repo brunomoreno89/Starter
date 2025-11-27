@@ -1,6 +1,6 @@
 # Starter
 
-Projeto **Starter** – uma base completa para aplicações modernas em **.NET 8 (WebAPI)** com **MySQL**, contendo **backend** e **frontend** no mesmo projeto.
+Projeto **Starter** – uma base completa para aplicações modernas em **.NET 8 (WebAPI)** com **SQL**, contendo **backend** e **frontend** no mesmo projeto.
 
 ---
 
@@ -18,16 +18,19 @@ Projeto **Starter** – uma base completa para aplicações modernas em **.NET 8
 ## 📂 Estrutura do Projeto
 ```
 Starter.Api/
- ├── Auth/            # Autenticação e geração de tokens
- ├── Controllers/     # Controllers da API
- ├── Data/            # DbContext e Migrations
- ├── DTOs/            # Data Transfer Objects
- ├── Models/          # Modelos de domínio
- ├── Security/        # Policies, Claims e configuração de segurança
- ├── Services/        # Serviços de negócio
- ├── Validators/      # Validações (FluentValidation)
- ├── wwwroot/         # Frontend (HTML, CSS, JS)
- └── Program.cs       # Startup da aplicação
+ ├── Config/                  # Ini Settings para a conexao com base de dados
+ ├── Auth/                    # Autenticação e geração de tokens
+ ├── Controllers/             # Controllers da API
+ ├── Data/                    # DbContext e Migrations
+ ├── DTOs/                    # Data Transfer Objects
+ ├── Models/                  # Modelos de domínio
+ ├── Middleware/              # JWT Revocation
+ ├── Security/                # Policies, Claims e configuração de segurança
+ ├── Services/                # Serviços de negócio / Autdit Logs
+ ├── Validators/              # Validações (FluentValidation)
+ ├── wwwroot/                 # Frontend (HTML, CSS, JS)
+ ├── Program.cs               # Startup da aplicação
+ └── appSettings.config       # Dados iniciais da aplicacao
 ```
 
 ---
@@ -35,28 +38,47 @@ Starter.Api/
 ## ⚙️ Configuração do Backend
 1. Configure a connection string em `appsettings.json`:
    ```json
-   "ConnectionStrings": {
-     "DefaultConnection": "server=localhost;port=3306;database=Starter;user=root;password=suasenha"
+   {
+      "Jwt": {
+         "Issuer": "Starter.Api",
+         "Audience": "Starter.Api.Clients",
+         "ExpiresMinutes": 60
+      },
+      "Serilog": {
+         "Using": [ "Serilog.Sinks.Console" ],
+         "MinimumLevel": "Information",
+         "WriteTo": [ { "Name": "Console" } ]
+      },
+      "Database": {
+         "Server": "localhost,1433",
+         "Name": "STARTERAPI"
+      },
+      "AllowedHosts": "*"
    }
+
    ```
-2. Crie o banco de dados:
-   ```bash
-   dotnet ef database update
+2. Crie o banco de dados: 
+   Utilize os scripts presentes no diretório:
+
    ```
+   Starter.Api/
+    ├── Config/                  # Ini Settings para a conexao com base de dados
+   ```
+
 3. Execute a aplicação:
    ```bash
    dotnet run --project Starter.Api
    ```
 
 A API será exposta em:  
-👉 `https://localhost:5001/api/...`
+👉 `https://localhost:5073/api/...`
 
 ---
 
 ## 🖥️ Frontend
 O frontend fica dentro de **`wwwroot/`** e é servido automaticamente junto com a aplicação.  
 - Para acessar, basta abrir:  
-👉 `https://localhost:5001/`
+👉 `https://localhost:5073/`
 
 ---
 
@@ -71,4 +93,5 @@ O frontend fica dentro de **`wwwroot/`** e é servido automaticamente junto com 
 ---
 
 ## 📜 Licença
-Este projeto é open-source e pode ser utilizado como base para novos sistemas.  
+Este projeto é um produto licenciado pela **BMO**.
+É permitido o uso para fins educacionais ou como base para novos sistemas, mantendo esta referência.

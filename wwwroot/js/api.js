@@ -177,6 +177,11 @@ async function fetchJSON(path, { method='GET', body, headers={} } = {}){
 // ---- API: Auth & Settings ----
 export async function login(username,password){ return fetchJSON('/auth/login', { method:'POST', body:{ username,password } }); }
 export async function changePassword(currentPassword, newPassword){ return fetchJSON('/auth/change-password', { method:'POST', body:{ currentPassword, newPassword } }); }
+// export async function logout(){  return fetchJSON('/auth/logout', { method: 'POST' }); }
+export async function logout(){
+  console.log('[api] calling /auth/logout');
+  return fetchJSON('/auth/logout', { method: 'POST' });
+}
 
 // ---- API: Items ----
 export async function listItems(){ return fetchJSON('/items'); }

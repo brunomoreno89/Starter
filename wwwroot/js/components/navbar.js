@@ -1,5 +1,5 @@
 // wwwroot/js/components/navbar.js
-import { auth, isSessionValid } from '../api.js';
+import { auth, isSessionValid , logout} from '../api.js';
 import { navigate } from '../router.js';
 
 export function renderNavbar() {
@@ -125,7 +125,16 @@ export function renderUserArea() {
       <path d="M12 2v10"/>
       <path d="M5.1 7.05a8 8 0 1 0 13.8 0"/>
     </svg>`;
-  signOutBtn.onclick = () => {
+  /* signOutBtn.onclick = () => { */
+  signOutBtn.onclick = async () => {
+    console.log('[navbar] logout clicked');
+    try {
+      await logout(); // chama API e deve aparecer no Network
+    } catch (err) {
+      console.error('[navbar] erro ao chamar logout', err);
+    }
+
+
     auth.clear?.();
     renderNavbar();
     renderUserArea();

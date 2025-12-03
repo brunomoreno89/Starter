@@ -13,6 +13,8 @@ import { LogsView } from './views/logs.js';
 import { RolePermissionsView } from './views/role-permissions.js';
 import { UserRolesView } from './views/user-roles.js';
 import { SettingsView } from './views/settings.js';
+import { StaticDataView } from './views/static-data.js';
+
 
 function bootTheme(){
   const t = localStorage.getItem('theme') || 'dark';
@@ -32,6 +34,7 @@ addRoute('/logs', LogsView, { auth:true, perm:'Logs.Read' });
 addRoute('/role-permissions', RolePermissionsView, { auth:true, perm:'RolePermissions.Assign' });
 addRoute('/user-roles', UserRolesView, { auth:true, perm:'UserRoles.Assign' });
 addRoute('/settings', SettingsView, { auth:true, perm:'Settings.Access' });
+addRoute('/static-data', StaticDataView, { auth:true, perm:'StaticData.Read' });
 
 function rerender(){
   renderNavbar();

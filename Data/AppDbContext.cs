@@ -10,6 +10,9 @@ public class AppDbContext : DbContext
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Item> Items => Set<Item>();
+    public DbSet<Holiday> Holidays => Set<Holiday>();
+    public DbSet<Region> Regions => Set<Region>();
+    public DbSet<Branch> Branches => Set<Branch>();
     public DbSet<LogEntry> Logs => Set<LogEntry>();
     public DbSet<SysDates> SysDates => Set<SysDates>();
 

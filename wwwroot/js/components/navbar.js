@@ -31,6 +31,14 @@ export function renderNavbar() {
     }
 
     // Logs
+    if (auth.hasPerm && auth.hasPerm('StaticData.Read')) {
+      const a = document.createElement('a');
+      a.href = '#/static-data';
+      a.textContent = 'Static Data';
+      links.appendChild(a);
+    }
+
+    // Logs
     if (auth.hasPerm && auth.hasPerm('Logs.Read')) {
       const a = document.createElement('a');
       a.href = '#/logs';

@@ -4,6 +4,58 @@ GO
 /* DDL Script */
 
 
+if not exists (select 1 from sys.objects where name = 'Regions' and type = 'U')
+    BEGIN
+        print 'Creating table Regions'
+        create table Regions (
+            Id int IDENTITY(1,1) not null
+            , Description varchar (255)
+            , CreatedAt smalldatetime  null 
+            , CreatedByUserId int  null
+            , UpdatedAt smalldatetime null 
+            , UpdatedByUserId int null
+            , Active varchar (3)
+            , CONSTRAINT PK_Regions PRIMARY KEY (Id)
+        )
+    END
+
+if not exists (select 1 from sys.objects where name = 'Branches' and type = 'U')
+    BEGIN
+        print 'Creating table Branches'
+
+        create table Branches (
+            Id int IDENTITY(1,1) not null
+            , BranchCode varchar (6) not NULL
+            , Description varchar (255)
+            , RegionId int not null
+            , CreatedByUserId int null
+            , UpdatedAt smalldatetime  null 
+            , UpdatedByUserId int null
+            , Active varchar (3) null
+            , CONSTRAINT PK_Branches PRIMARY KEY (Id)
+        )
+    END
+
+
+if not exists (select 1 from sys.objects where name = 'Holidays' and type = 'U')
+    BEGIN
+        print 'Creating table Holidays'
+
+        create table Holidays (
+            Id int IDENTITY(1,1) not null
+            , HolidayDate smalldatetime not NULL
+            , Description varchar (255)
+            , BranchId int not null
+            , CreatedByUserId int  null
+            , UpdatedAt smalldatetime null 
+            , UpdatedByUserId int null
+            , Active varchar (3)
+            , CONSTRAINT PK_Holidays PRIMARY KEY (Id)
+        )
+    END
+
+
+
 if not exists (select 1 from sys.objects where name = 'Users' and type = 'U')
     BEGIN
         print 'Creating table Users'

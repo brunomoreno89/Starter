@@ -1,5 +1,5 @@
 // wwwroot/js/components/navbar.js
-import { auth, isSessionValid , logout} from '../api.js';
+import { auth, isSessionValid , logout, getUser} from '../api.js';
 import { navigate } from '../router.js';
 
 export function renderNavbar() {
@@ -37,70 +37,28 @@ export function renderNavbar() {
       a.textContent = 'Logs';
       links.appendChild(a);
     }
-    /*
-    // Users
-    if (auth.hasPerm && auth.hasPerm('Users.Read')) {
-      const a = document.createElement('a');
-      a.href = '#/users';
-      a.textContent = 'Users';
-      links.appendChild(a);
-    }
-
-    // Permissions CRUD
-    if (auth.hasPerm && auth.hasPerm('Permissions.Read')) {
-      const a = document.createElement('a');
-      a.href = '#/permissions';
-      a.textContent = 'Permissions';
-      links.appendChild(a);
-    }
-
-    // Roles CRUD
-    if (auth.hasPerm && auth.hasPerm('Roles.Read')) {
-      const a = document.createElement('a');
-      a.href = '#/roles';
-      a.textContent = 'Roles';
-      links.appendChild(a);
-    }
-
-    // Role × Permissions (amarração)
-    if (auth.hasPerm && auth.hasPerm('RolePermissions.Assign')) {
-      const a = document.createElement('a');
-      a.href = '#/role-permissions';
-      a.textContent = 'Role × Permissions';
-      links.appendChild(a);
-    }
-
-    // User × Roles (amarração)
-    if (auth.hasPerm && auth.hasPerm('UserRoles.Assign')) {
-      const a = document.createElement('a');
-      a.href = '#/user-roles';
-      a.textContent = 'User × Roles';
-      links.appendChild(a);
-    }
-    */
-
     setActiveLink();
   }
 
   renderUserArea();
 }
 
-export function renderUserArea() {
-  const el = document.getElementById('topUserArea');
-  if (!el) return;
-  el.innerHTML = '';
+  export async function renderUserArea() {
+    const el = document.getElementById('topUserArea');
+    if (!el) return;
+    el.innerHTML = '';
 
+    if (!isSessionValid()) return;
 
-  if (!isSessionValid()) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'top-actions';
 
-  const wrap = document.createElement('div');
-  wrap.className = 'top-actions';
+    // Username / Nome na navbar
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = 'Logged User: '+auth.username;
+    wrap.appendChild(label);
 
-  // Username
-  const label = document.createElement('span');
-  label.className = 'label';
-  label.textContent = `${auth.username || ''}`;
-  wrap.appendChild(label);
 
   // Settings (gear icon) — mostra apenas se tiver permissão
   if (auth.hasPerm && auth.hasPerm('Settings.Access')) {

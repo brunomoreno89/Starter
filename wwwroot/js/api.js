@@ -112,6 +112,25 @@ export const auth = {
   get exp(){ const { exp } = this.claims || {}; return typeof exp === 'number' ? exp : null; },
   isExpired(){ if(!this.token) return true; if(!this.exp) return false; return Date.now() >= this.exp * 1000; },
 
+  get userId() {
+    const c = this.claims || {};
+    return (
+      c.sub ||
+      c['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ||
+      null
+    );
+  },
+  get username() {
+    const c = this.claims || {};
+    return (
+      c['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] ||
+      c.unique_name ||
+      c.username ||
+      ''
+    );
+  },
+
+
   // ---- Roles / Perms robustos ----
   roles(){ return _rolesFromClaims(this.claims); },
   hasRole(...names){
@@ -320,3 +339,7 @@ export async function exportLogsCsv({ User, StartDate, EndDate } = {}){
 }
 
 
+if (typeof window !== 'undefined') {
+  window.auth = auth;
+  window.apiGetUser = getUser;
+}

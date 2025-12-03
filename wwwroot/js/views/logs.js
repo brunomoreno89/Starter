@@ -23,6 +23,7 @@ function renderPagerSafe(host, meta, onChange){
 function toInputDate(d){
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
+  //return `${day}-${m}-${y}`;
 }
 function monthBounds(now=new Date()){
   const start=new Date(now.getFullYear(), now.getMonth(), 1, 0,0,0);

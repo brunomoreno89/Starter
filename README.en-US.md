@@ -102,5 +102,5 @@ The frontend is located in **`wwwroot/`**  and is served automatically with the 
 ---
 
 ## 📜 Licença
-This project is a licensed product by **BMO**.
+This project is a licensed product by **Moreno Capital**.
 It may be used for educational purposes or as a base for other systems, as long as this notice is preserved.

@@ -93,5 +93,5 @@ O frontend fica dentro de **`wwwroot/`** e é servido automaticamente junto com 
 ---
 
 ## 📜 Licença
-Este projeto é um produto licenciado pela **BMO**.
+Este projeto é um produto licenciado pela **Moreno Capital**.
 É permitido o uso para fins educacionais ou como base para novos sistemas, mantendo esta referência.

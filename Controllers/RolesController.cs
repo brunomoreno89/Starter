@@ -2,13 +2,9 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Starter.Api.Data;
 using Starter.Api.DTOs.Security;
-using Starter.Api.Models;
 using Starter.Api.Security;
-using Starter.Api.Services;      // <- IAuditLogger
-using System.Threading;          // <- CancellationToken
+using Starter.Api.Services;
 
 namespace Starter.Api.Controllers;
 
@@ -17,64 +13,32 @@ namespace Starter.Api.Controllers;
 [Authorize]
 public class RolesController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly IRoleService _roles;
     private readonly IAuditLogger _audit;
-    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public RolesController(AppDbContext db, IAuditLogger audit, IDateTimeProvider dateTimeProvider)
+    public RolesController(
+        IRoleService roles,
+        IAuditLogger audit)
     {
-        _db = db;
+        _roles = roles;
         _audit = audit;
-        _dateTimeProvider = dateTimeProvider;
     }
 
     [Authorize(Policy = "Perm:Roles.Read")]
     [HttpGet]
-
     public async Task<ActionResult<IEnumerable<RoleDto>>> List(CancellationToken ct)
     {
-        // 1) carrega todos os nomes (Id -> DisplayName) de uma vez
-        var names = await _db.Users
-            .AsNoTracking()
-            .Select(x => new { x.Id, Display = x.Name ?? x.Username })
-            .ToDictionaryAsync(x => x.Id, x => x.Display, ct);
-
-        // 2) carrega usuários
-        var role = await _db.Roles
-            .AsNoTracking()
-            .OrderBy(u => u.Id)
-            .ToListAsync(ct);
-
-        var result = role.Select(r => new RoleDto
-        {
-            Id = r.Id,
-            Name = r.Name,
-            Description    = r.Description,
-            Active         = r.Active,
-            CreationDt     = r.CreationDt,
-            CreatedBy      = r.CreatedBy,
-            CreatedByName  = (r.CreatedBy.HasValue && names.TryGetValue(r.CreatedBy.Value, out var cName)) ? cName : null,
-            UpdateDt        = r.UpdateDt,
-            UpdatedBy      = r.UpdatedBy,
-            UpdatedByName  = (r.UpdatedBy.HasValue && names.TryGetValue(r.UpdatedBy.Value, out var uName)) ? uName : null
-
-        }).ToList();
-
-        return Ok(result);
-    }        
+        var data = await _roles.ListAsync(ct);
+        return Ok(data);
+    }
 
     [Authorize(Policy = "Perm:Roles.Read")]
     [HttpGet("{id:int}")]
     public async Task<ActionResult<RoleDto>> GetOne(int id, CancellationToken ct)
     {
-        var r = await _db.Roles.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (r is null) return NotFound();
-        return new RoleDto
-        {
-            Id = r.Id,
-            Name = r.Name,
-            Description = r.Description
-        };
+        var dto = await _roles.GetByIdAsync(id, ct);
+        if (dto is null) return NotFound();
+        return Ok(dto);
     }
 
     [Authorize(Policy = "Perm:Roles.Create")]
@@ -93,40 +57,20 @@ public class RolesController : ControllerBase
         }
 
         var name = dto.Name?.Trim();
-        var desc = dto.Description?.Trim();
-
         if (string.IsNullOrWhiteSpace(name))
             return BadRequest("Name is mandatory.");
 
-        if (await _db.Roles.AsNoTracking().AnyAsync(x => x.Name == name, ct))
+        if (await _roles.NameExistsAsync(name!, null, ct))
             return Conflict("Role name already exists.");
 
-        var creatorId = User.TryGetUserId(); 
+        var currentUserId = User.TryGetUserId();
 
-        var entity = new Role
-        {
-            Name = name!,
-            Description = desc,
-            CreationDt = _dateTimeProvider.NowLocal,
-            Active = "Yes",
-            CreatedBy = creatorId
-        };
-        _db.Roles.Add(entity);
-        await _db.SaveChangesAsync(ct);
+        var created = await _roles.CreateAsync(dto, currentUserId, ct);
 
-        // 🔎 Log
-        await _audit.LogAsync("Roles.Create", $"Created role {entity.Name} (Id={entity.Id})", ct);
+        await _audit.LogAsync("Roles.Create", currentUserId,
+            $"Created role {created.Name} (Id={created.Id})", ct);
 
-        return CreatedAtAction(nameof(GetOne), new { id = entity.Id },
-            new RoleDto
-            {
-                Id = entity.Id,
-                Name = entity.Name,
-                Description = entity.Description,
-                Active = entity.Active,
-                CreationDt = entity.CreationDt,
-                CreatedBy = entity.CreatedBy
-            });
+        return CreatedAtAction(nameof(GetOne), new { id = created.Id }, created);
     }
 
     [Authorize(Policy = "Perm:Roles.Update")]
@@ -145,31 +89,29 @@ public class RolesController : ControllerBase
             if (!val.IsValid) return BadRequest(val.Errors);
         }
 
-        var entity = await _db.Roles.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (entity is null) return NotFound();
-
         var name = dto.Name?.Trim();
-        var desc = dto.Description?.Trim();
-        var active = dto.Active?.Trim();
-
         if (string.IsNullOrWhiteSpace(name))
             return BadRequest("Name is mandatory.");
 
-        var dup = await _db.Roles.AsNoTracking().AnyAsync(x => x.Id != id && x.Name == name, ct);
-        if (dup) return Conflict("Role name already exists.");
+        if (await _roles.NameExistsAsync(name!, id, ct))
+            return Conflict("Role name already exists.");
 
-        var updateId = User.TryGetUserId(); 
+        var currentUserId = User.TryGetUserId();
 
-        entity.Name = name!;
-        entity.Description = desc;
-        entity.Active = active;
-        entity.UpdateDt = _dateTimeProvider.NowLocal;
-        entity.UpdatedBy = updateId;
+        RoleDto? updated;
+        try
+        {
+            updated = await _roles.UpdateAsync(id, dto, currentUserId, ct);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Active must be"))
+        {
+            return BadRequest(ex.Message);
+        }
 
-        await _db.SaveChangesAsync(ct);
+        if (updated is null) return NotFound();
 
-        // 🔎 Log
-        await _audit.LogAsync("Roles.Update", $"Updated role {entity.Name} (Id={entity.Id})", ct);
+        await _audit.LogAsync("Roles.Update", currentUserId,
+            $"Updated role {updated.Name} (Id={updated.Id})", ct);
 
         return NoContent();
     }
@@ -178,16 +120,13 @@ public class RolesController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
-        var entity = await _db.Roles.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (entity is null) return NotFound();
+        var currentUserId = User.TryGetUserId();
 
-        entity.Active    = "No";
-        entity.UpdatedBy = User.TryGetUserId();
-        entity.UpdateDt = _dateTimeProvider.NowLocal;
-        await _db.SaveChangesAsync(ct);
+        var ok = await _roles.SoftDeleteAsync(id, currentUserId, ct);
+        if (!ok) return NotFound();
 
-        // 🔎 Log
-        await _audit.LogAsync("Roles.Delete", $"Deleted role {entity.Name} (Id={entity.Id})", ct);
+        await _audit.LogAsync("Roles.Delete", currentUserId,
+            $"Deleted role Id={id}", ct);
 
         return NoContent();
     }

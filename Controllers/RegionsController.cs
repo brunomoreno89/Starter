@@ -1,13 +1,11 @@
+// Controllers/RegionsController.cs
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Starter.Api.Data;
 using Starter.Api.DTOs.Regions;
-using Starter.Api.Models;
 using Starter.Api.Security;
-using Starter.Api.Services;      // IAuditLogger
-using System.Threading;          // CancellationToken
+using Starter.Api.Services;
+using System.Threading;
 
 namespace Starter.Api.Controllers;
 
@@ -16,54 +14,32 @@ namespace Starter.Api.Controllers;
 [Authorize]
 public class RegionsController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly IRegionService _regions;
     private readonly IAuditLogger _audit;
-    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public RegionsController(AppDbContext db, IAuditLogger audit, IDateTimeProvider dateTimeProvider)
+    public RegionsController(
+        IRegionService regions,
+        IAuditLogger audit)
     {
-        _db = db;
+        _regions = regions;
         _audit = audit;
-        _dateTimeProvider = dateTimeProvider;
     }
 
     [Authorize(Policy = "Perm:Regions.Read")]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<RegionsDto>>> List(CancellationToken ct)
     {
-        // 1) carrega todos os nomes (Id -> DisplayName) de uma vez
-        var names = await _db.Users
-            .AsNoTracking()
-            .Select(x => new { x.Id, Display = x.Name ?? x.Username })
-            .ToDictionaryAsync(x => x.Id, x => x.Display, ct);
-
-        // 2) carrega usuários
-        var region = await _db.Regions
-            .AsNoTracking()
-            .OrderBy(u => u.Id)
-            .ToListAsync(ct);
-
-        var result = region.Select(regions => new RegionsDto
-        {
-            Id = regions.Id,
-            Description    = regions.Description,
-            CreatedAt = regions.CreatedAt,
-            CreatedByUserId = regions.CreatedByUserId,
-            UpdatedAt = regions.UpdatedAt,
-            UpdatedByUserId = regions.UpdatedByUserId,
-            Active = regions.Active
-        }).ToList();
-
-        return Ok(result);
-    }   
+        var data = await _regions.ListAsync(ct);
+        return Ok(data);
+    }
 
     [Authorize(Policy = "Perm:Regions.Read")]
     [HttpGet("{id:int}")]
     public async Task<ActionResult<RegionsDto>> GetOne(int id, CancellationToken ct)
     {
-        var i = await _db.Items.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (i == null) return NotFound();
-        return new RegionsDto { Id = i.Id, Description = i.Description };
+        var dto = await _regions.GetByIdAsync(id, ct);
+        if (dto is null) return NotFound();
+        return Ok(dto);
     }
 
     [Authorize(Policy = "Perm:Regions.Create")]
@@ -81,22 +57,14 @@ public class RegionsController : ControllerBase
             if (!val.IsValid) return BadRequest(val.Errors);
         }
 
-        var entity = new Region
-        {
-            Description = dto.Description,
-            CreatedAt = _dateTimeProvider.NowLocal,
-            Active = "Yes",
-            CreatedByUserId = User.TryGetUserId()
-        };
+        var currentUserId = User.TryGetUserId();
 
-        _db.Regions.Add(entity);
-        await _db.SaveChangesAsync(ct);
+        var created = await _regions.CreateAsync(dto, currentUserId, ct);
 
-        // Log
-        await _audit.LogAsync("Regions.Create", $"Created item {entity.Description}", ct);
+        await _audit.LogAsync("Regions.Create", currentUserId,
+            $"Created region {created.Description} (Id={created.Id})", ct);
 
-        dto.Id = entity.Id;
-        return CreatedAtAction(nameof(GetOne), new { id = entity.Id }, dto);
+        return CreatedAtAction(nameof(GetOne), new { id = created.Id }, created);
     }
 
     [Authorize(Policy = "Perm:Regions.Update")]
@@ -115,19 +83,22 @@ public class RegionsController : ControllerBase
             if (!val.IsValid) return BadRequest(val.Errors);
         }
 
-        var entity = await _db.Regions.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (entity == null) return NotFound();
+        var currentUserId = User.TryGetUserId();
 
-        
-        entity.Description = dto.Description;
-        entity.UpdatedAt = _dateTimeProvider.NowLocal;
-        entity.UpdatedByUserId = User.TryGetUserId(); 
-        entity.Active = dto.Active?.Trim();
+        RegionsDto? updated;
+        try
+        {
+            updated = await _regions.UpdateAsync(id, dto, currentUserId, ct);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Active must be"))
+        {
+            return BadRequest(ex.Message);
+        }
 
-        await _db.SaveChangesAsync(ct);
+        if (updated is null) return NotFound();
 
-        // Log
-        await _audit.LogAsync("Regions.Update", $"Updated item {entity.Description}", ct);
+        await _audit.LogAsync("Regions.Update", currentUserId,
+            $"Updated region {updated.Description} (Id={updated.Id})", ct);
 
         return NoContent();
     }
@@ -136,16 +107,13 @@ public class RegionsController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
-        var entity = await _db.Items.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (entity == null) return NotFound();
+        var currentUserId = User.TryGetUserId();
 
-        entity.Active    = "No";
-        entity.UpdatedByUserId = User.TryGetUserId();
-        entity.UpdatedAt = _dateTimeProvider.NowLocal;
-        await _db.SaveChangesAsync(ct);
+        var ok = await _regions.SoftDeleteAsync(id, currentUserId, ct);
+        if (!ok) return NotFound();
 
-        // Log
-        await _audit.LogAsync("Items.Delete", $"Deleted item #{id}", ct);
+        await _audit.LogAsync("Regions.Delete", currentUserId,
+            $"Deleted region Id={id}", ct);
 
         return NoContent();
     }

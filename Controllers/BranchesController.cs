@@ -1,13 +1,11 @@
+// Controllers/BranchesController.cs
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Starter.Api.Data;
 using Starter.Api.DTOs.Branches;
-using Starter.Api.Models;
 using Starter.Api.Security;
-using Starter.Api.Services;      // IAuditLogger
-using System.Threading;          // CancellationToken
+using Starter.Api.Services;
+using System.Threading;
 
 namespace Starter.Api.Controllers;
 
@@ -16,56 +14,32 @@ namespace Starter.Api.Controllers;
 [Authorize]
 public class BranchesController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly IBranchService _branches;
     private readonly IAuditLogger _audit;
-    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public BranchesController(AppDbContext db, IAuditLogger audit, IDateTimeProvider dateTimeProvider)
+    public BranchesController(
+        IBranchService branches,
+        IAuditLogger audit)
     {
-        _db = db;
+        _branches = branches;
         _audit = audit;
-        _dateTimeProvider = dateTimeProvider;
     }
 
     [Authorize(Policy = "Perm:Branches.Read")]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<BranchesDto>>> List(CancellationToken ct)
     {
-        // 1) carrega todos os nomes (Id -> DisplayName) de uma vez
-        var names = await _db.Users
-            .AsNoTracking()
-            .Select(x => new { x.Id, Display = x.Name ?? x.Username })
-            .ToDictionaryAsync(x => x.Id, x => x.Display, ct);
-
-        // 2) carrega usuários
-        var branch = await _db.Branches
-            .AsNoTracking()
-            .OrderBy(u => u.Id)
-            .ToListAsync(ct);
-
-        var result = branch.Select(Branches => new BranchesDto
-        {
-            Id = Branches.Id,
-            Description    = Branches.Description,
-            BranchCode    = Branches.BranchCode,
-            RegionId = Branches.RegionId,
-            CreatedAt = Branches.CreatedAt,
-            CreatedByUserId = Branches.CreatedByUserId,
-            UpdatedAt = Branches.UpdatedAt,
-            UpdatedByUserId = Branches.UpdatedByUserId,
-            Active = Branches.Active
-        }).ToList();
-
-        return Ok(result);
-    }   
+        var data = await _branches.ListAsync(ct);
+        return Ok(data);
+    }
 
     [Authorize(Policy = "Perm:Branches.Read")]
     [HttpGet("{id:int}")]
     public async Task<ActionResult<BranchesDto>> GetOne(int id, CancellationToken ct)
     {
-        var i = await _db.Items.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (i == null) return NotFound();
-        return new BranchesDto { Id = i.Id, Description = i.Description };
+        var dto = await _branches.GetByIdAsync(id, ct);
+        if (dto is null) return NotFound();
+        return Ok(dto);
     }
 
     [Authorize(Policy = "Perm:Branches.Create")]
@@ -83,24 +57,14 @@ public class BranchesController : ControllerBase
             if (!val.IsValid) return BadRequest(val.Errors);
         }
 
-        var entity = new Branch
-        {
-            Description = dto.Description,
-            BranchCode    = dto.BranchCode,
-            RegionId = dto.RegionId,
-            CreatedAt = _dateTimeProvider.NowLocal,
-            Active = "Yes",
-            CreatedByUserId = User.TryGetUserId()
-        };
+        var currentUserId = User.TryGetUserId();
 
-        _db.Branches.Add(entity);
-        await _db.SaveChangesAsync(ct);
+        var created = await _branches.CreateAsync(dto, currentUserId, ct);
 
-        // Log
-        await _audit.LogAsync("Branches.Create", $"Created item {entity.Description}", ct);
+        await _audit.LogAsync("Branches.Create", currentUserId,
+            $"Created branch {created.BranchCode} - {created.Description} (Id={created.Id})", ct);
 
-        dto.Id = entity.Id;
-        return CreatedAtAction(nameof(GetOne), new { id = entity.Id }, dto);
+        return CreatedAtAction(nameof(GetOne), new { id = created.Id }, created);
     }
 
     [Authorize(Policy = "Perm:Branches.Update")]
@@ -119,21 +83,22 @@ public class BranchesController : ControllerBase
             if (!val.IsValid) return BadRequest(val.Errors);
         }
 
-        var entity = await _db.Branches.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (entity == null) return NotFound();
+        var currentUserId = User.TryGetUserId();
 
-        
-        entity.Description = dto.Description;
-        entity.BranchCode    = dto.BranchCode;
-        entity.RegionId = dto.RegionId;
-        entity.UpdatedAt = _dateTimeProvider.NowLocal;
-        entity.UpdatedByUserId = User.TryGetUserId(); 
-        entity.Active = dto.Active?.Trim();
+        BranchesDto? updated;
+        try
+        {
+            updated = await _branches.UpdateAsync(id, dto, currentUserId, ct);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Active must be"))
+        {
+            return BadRequest(ex.Message);
+        }
 
-        await _db.SaveChangesAsync(ct);
+        if (updated is null) return NotFound();
 
-        // Log
-        await _audit.LogAsync("Branches.Update", $"Updated item {entity.Description}", ct);
+        await _audit.LogAsync("Branches.Update", currentUserId,
+            $"Updated branch {updated.BranchCode} - {updated.Description} (Id={updated.Id})", ct);
 
         return NoContent();
     }
@@ -142,16 +107,13 @@ public class BranchesController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
-        var entity = await _db.Items.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (entity == null) return NotFound();
+        var currentUserId = User.TryGetUserId();
 
-        entity.Active    = "No";
-        entity.UpdatedByUserId = User.TryGetUserId();
-        entity.UpdatedAt = _dateTimeProvider.NowLocal;
-        await _db.SaveChangesAsync(ct);
+        var ok = await _branches.SoftDeleteAsync(id, currentUserId, ct);
+        if (!ok) return NotFound();
 
-        // Log
-        await _audit.LogAsync("Branches.Delete", $"Deleted item #{id}", ct);
+        await _audit.LogAsync("Branches.Delete", currentUserId,
+            $"Deleted branch Id={id}", ct);
 
         return NoContent();
     }

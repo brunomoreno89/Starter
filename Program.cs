@@ -124,6 +124,19 @@ builder.Services.AddScoped<PasswordHasher>();
 builder.Services.AddScoped<IItemService, ItemService>();
 builder.Services.AddScoped<ILogService, LogService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IPermissionService, PermissionService>();
+builder.Services.AddScoped<IRoleService, RoleService>();
+builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
+builder.Services.AddScoped<IUserRoleService, UserRoleService>();
+builder.Services.AddScoped<IHolidaysService, HolidaysService>();
+builder.Services.AddScoped<IBranchService, BranchService>();
+builder.Services.AddScoped<IRegionService, RegionService>();
+builder.Services.AddScoped<ISysDatesService, SysDatesService>();
+
+
+
+
+
 
 
 //builder.Services.AddScoped<ITokenService, TokenService>();

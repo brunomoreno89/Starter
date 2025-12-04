@@ -1,41 +1,25 @@
 // Controllers/SystemController.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Starter.Api.Data;
 using Starter.Api.DTOs.System;
+using Starter.Api.Services;
 
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
 public class SystemController : ControllerBase
 {
-    private readonly AppDbContext _db;
-    private readonly IDateTimeProvider _clock;
-    private readonly IDateTimeProvider _dateTimeProvider;
+    private readonly ISysDatesService _sysDates;
 
-    public SystemController(AppDbContext db, IDateTimeProvider clock, IDateTimeProvider dateTimeProvider)
+    public SystemController(ISysDatesService sysDates)
     {
-        _db = db;
-        _clock = clock;
-        _dateTimeProvider = dateTimeProvider;
+        _sysDates = sysDates;
     }
 
     [HttpGet("dates")]
     public async Task<ActionResult<IEnumerable<SystemDto>>> List(CancellationToken ct)
     {
-        var sysDates = await _db.SysDates
-            .AsNoTracking()
-            .ToListAsync(ct);
-
-        var result = sysDates.Select(sysDt => new SysDates
-        {
-            SysCurrentDate = sysDt.SysCurrentDate,
-            SysClosedDate = sysDt.SysClosedDate,
-            SysName = sysDt.SysName
-
-        }).ToList();
-
-        return Ok(result);
-    }    
+        var data = await _sysDates.ListAsync(ct);
+        return Ok(data);
+    }
 }

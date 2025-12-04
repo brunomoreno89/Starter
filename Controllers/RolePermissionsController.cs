@@ -2,12 +2,10 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Starter.Api.Data;
 using Starter.Api.DTOs.Security;
-using Starter.Api.Models;
-using Starter.Api.Services;      // <- IAuditLogger
-using System.Threading;          // <- CancellationToken
+using Starter.Api.Security;
+using Starter.Api.Services;
+using System.Threading;
 
 namespace Starter.Api.Controllers;
 
@@ -16,35 +14,28 @@ namespace Starter.Api.Controllers;
 [Authorize]
 public class RolePermissionsController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly IRolePermissionService _rolePermissions;
     private readonly IAuditLogger _audit;
 
-    public RolePermissionsController(AppDbContext db, IAuditLogger audit)
+    public RolePermissionsController(
+        IRolePermissionService rolePermissions,
+        IAuditLogger audit)
     {
-        _db = db;
+        _rolePermissions = rolePermissions;
         _audit = audit;
     }
 
     // GET /api/rolepermissions/{roleId}
     [Authorize(Policy = "Perm:RolePermissions.Assign")]
     [HttpGet("{roleId:int}")]
-    public async Task<ActionResult<IEnumerable<PermissionDto>>> GetByRole(int roleId, CancellationToken ct)
+    public async Task<ActionResult<IEnumerable<PermissionDto>>> GetByRole(
+        int roleId,
+        CancellationToken ct)
     {
-        var exists = await _db.Roles.AsNoTracking().AnyAsync(r => r.Id == roleId, ct);
+        var exists = await _rolePermissions.RoleExistsAsync(roleId, ct);
         if (!exists) return NotFound();
 
-        var perms = await _db.RolePermissions
-            .AsNoTracking()
-            .Where(rp => rp.RoleId == roleId)
-            .OrderBy(rp => rp.Permission.Name)
-            .Select(rp => new PermissionDto
-            {
-                Id = rp.PermissionId,
-                Name = rp.Permission.Name,
-                Description = rp.Permission.Description
-            })
-            .ToListAsync(ct);
-
+        var perms = await _rolePermissions.GetByRoleAsync(roleId, ct);
         return Ok(perms);
     }
 
@@ -64,37 +55,26 @@ public class RolePermissionsController : ControllerBase
             if (!val.IsValid) return BadRequest(val.Errors);
         }
 
-        // role existe?
-        var roleExists = await _db.Roles.AsNoTracking().AnyAsync(r => r.Id == dto.RoleId, ct);
-        if (!roleExists) return BadRequest("Ivalid Role.");
+        // Role existe?
+        var roleExists = await _rolePermissions.RoleExistsAsync(dto.RoleId, ct);
+        if (!roleExists) return BadRequest("Invalid Role.");
 
-        // valida IDs de permissão
-        var requestedIds = dto.PermissionIds?.Distinct().ToArray() ?? Array.Empty<int>();
-        var validIds = await _db.Permissions
-            .AsNoTracking()
-            .Where(p => requestedIds.Contains(p.Id))
-            .Select(p => p.Id)
-            .ToListAsync(ct);
+        (int oldCount, int newCount) counters;
+        try
+        {
+            counters = await _rolePermissions.AssignAsync(dto, ct);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("permissions are not valid"))
+        {
+            return BadRequest(ex.Message);
+        }
 
-        if (validIds.Count != requestedIds.Length)
-            return BadRequest("One or more permissins are not valid.");
+        var currentUserId = User.TryGetUserId();
 
-        // remove tudo e reatribui (estratégia replace-all)
-        var current = await _db.RolePermissions
-            .Where(rp => rp.RoleId == dto.RoleId)
-            .ToListAsync(ct);
-
-        _db.RolePermissions.RemoveRange(current);
-
-        foreach (var pid in validIds)
-            _db.RolePermissions.Add(new RolePermission { RoleId = dto.RoleId, PermissionId = pid });
-
-        await _db.SaveChangesAsync(ct);
-
-        // 🔎 Log
         await _audit.LogAsync(
             "RolePermissions.Assign",
-            $"Replaced role {dto.RoleId} permissions: old={current.Count}, new={validIds.Count}",
+            currentUserId,
+            $"Replaced role {dto.RoleId} permissions: old={counters.oldCount}, new={counters.newCount}",
             ct);
 
         return NoContent();

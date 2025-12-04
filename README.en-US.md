@@ -13,7 +13,7 @@
 ## 🚀 Technologies
 - .NET 8 / C#
 - Entity Framework Core
-- MySQL
+- SQL Server
 - JWT Authentication
 - FluentValidation
 - HTML, CSS and JavaScript (ES6) – served from **wwwroot**

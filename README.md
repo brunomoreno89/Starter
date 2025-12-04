@@ -7,7 +7,7 @@ Projeto **Starter** – uma base completa para aplicações modernas em **.NET 8
 ## 🚀 Tecnologias
 - .NET 8 / C#  
 - Entity Framework Core  
-- MySQL  
+- SQL Server  
 - JWT Authentication  
 - FluentValidation  
 - HTML, CSS e JavaScript (ES6) – servido via **wwwroot**  

@@ -121,6 +121,11 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuditLogger, AuditLogger>();
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddScoped<PasswordHasher>();
+builder.Services.AddScoped<IItemService, ItemService>();
+builder.Services.AddScoped<ILogService, LogService>();
+builder.Services.AddScoped<IUserService, UserService>();
+
+
 //builder.Services.AddScoped<ITokenService, TokenService>();
 
 

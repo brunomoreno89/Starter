@@ -1,9 +1,10 @@
 using System;
+using System.Data;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Starter.Api.Data;
-using Starter.Api.Models;
 using Starter.Api.Security;
 
 namespace Starter.Api.Services
@@ -19,42 +20,65 @@ namespace Starter.Api.Services
             _http = http;
         }
 
-        public async Task LogAsync(string action, int? userId = null, string? details = null, CancellationToken ct = default)
+        /// <summary>
+        /// Método principal de log.
+        /// Agora grava na tabela Logs via stored procedure SP_STARTER_AUDIT_LOG_INSERT.
+        /// </summary>
+        public async Task LogAsync(
+            string action,
+            int? userId = null,
+            string? details = null,
+            CancellationToken ct = default)
         {
-            // tenta extrair do token se não vier explícito
+            // Se userId não vier, tenta extrair do token (claims)
             if (userId == null)
             {
                 var principal = _http.HttpContext?.User;
                 var uid = principal?.TryGetUserId();
-                if (uid.HasValue) userId = uid.Value;
+                if (uid.HasValue)
+                    userId = uid.Value;
             }
 
-            if (action?.Length > 250) action = action[..250];
-            if (details?.Length > 2000) details = details[..2000];
-
+            // Monta a mensagem final que vai para a coluna Description (varchar(250))
+            // Ex.: [Auth.Login] User 'bruno' logged in
+            var baseAction = action ?? string.Empty;
             var message = string.IsNullOrWhiteSpace(details)
-                ? action ?? string.Empty
-                : $"{action}: {details}";
+                ? baseAction
+                : $"{baseAction}: {details}";
 
-            TimeZoneInfo tz;
-            try { tz = TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo"); }
-            catch { tz = TimeZoneInfo.FindSystemTimeZoneById("E. South America Standard Time"); }
+            // Garante que cabe em varchar(250)
+            if (message.Length > 250)
+                message = message[..250];
 
-            var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+            // UserId na tabela é NOT NULL, então se continuar nulo, usamos 0
+            var finalUserId = userId.GetValueOrDefault(0);
 
-            var entry = new LogEntry
-            {
-                // se LogEntry.UserId for int não-nullable, usar GetValueOrDefault()
-                UserId      = userId.GetValueOrDefault(),
-                ExecDate    = nowLocal,
-                Description = message
-            };
+            var conn = _db.Database.GetDbConnection();
+            if (conn.State != ConnectionState.Open)
+                await conn.OpenAsync(ct);
 
-            _db.Logs.Add(entry);
-            await _db.SaveChangesAsync(ct);
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "dbo.SP_STARTER_AUDIT_LOG_INSERT";
+            cmd.CommandType = CommandType.StoredProcedure;
+
+            AddParam(cmd, "@UserId", finalUserId);
+            AddParam(cmd, "@RoleId", DBNull.Value);        // por enquanto não populamos RoleId
+            AddParam(cmd, "@PermissionId", DBNull.Value);  // nem PermissionId
+            AddParam(cmd, "@Description", message);
+
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+
+        private static void AddParam(IDbCommand cmd, string name, object? value)
+        {
+            var p = cmd.CreateParameter();
+            p.ParameterName = name;
+            p.Value = value ?? DBNull.Value;
+            cmd.Parameters.Add(p);
         }
 
         // ===== Overloads de compatibilidade =====
+
         public Task LogAsync(int userId, string description, CancellationToken ct = default)
             => LogAsync(description, userId, null, ct);
 

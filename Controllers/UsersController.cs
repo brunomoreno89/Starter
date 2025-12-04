@@ -1,35 +1,26 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Starter.Api.Data;
 using Starter.Api.DTOs.Users;
-using Starter.Api.Models;
-using Starter.Api.Services;
-using System.Collections.Generic;
 using Starter.Api.Security;
+using Starter.Api.Services;
 
 namespace Starter.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize] // exige auth por padrão (suas policies continuam nos endpoints)
+[Authorize] 
 public class UsersController : ControllerBase
 {
-    private static readonly HashSet<string> AllowedRoles = new(StringComparer.OrdinalIgnoreCase)
-    { "Admin", "User" };
-
-    private readonly AppDbContext _db;
-    private readonly PasswordHasher _hasher;
+    private readonly IUserService _users;
     private readonly IAuditLogger _audit;
-    private readonly IDateTimeProvider _dateTimeProvider;
 
-    public UsersController(AppDbContext db, PasswordHasher hasher, IAuditLogger audit, IDateTimeProvider dateTimeProvider)
+    public UsersController(
+        IUserService users,
+        IAuditLogger audit)
     {
-        _db = db;
-        _hasher = hasher;
+        _users = users;
         _audit = audit;
-        _dateTimeProvider = dateTimeProvider;
     }
 
     // GET /api/users
@@ -37,35 +28,8 @@ public class UsersController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<UserDto>>> List(CancellationToken ct)
     {
-        // 1) carrega todos os nomes (Id -> DisplayName) de uma vez
-        var names = await _db.Users
-            .AsNoTracking()
-            .Select(x => new { x.Id, Display = x.Name ?? x.Username })
-            .ToDictionaryAsync(x => x.Id, x => x.Display, ct);
-
-        // 2) carrega usuários
-        var users = await _db.Users
-            .AsNoTracking()
-            .OrderBy(u => u.Id)
-            .ToListAsync(ct);
-
-        // 3) projeta em memória sem N+1
-        var result = users.Select(u => new UserDto
-        {
-            Id             = u.Id,
-            Username       = u.Username,
-            Name           = u.Name,
-            Email          = u.Email,
-            Active         = u.Active,
-            CreationDt     = u.CreationDt,
-            CreatedBy      = u.CreatedBy,
-            CreatedByName  = (u.CreatedBy.HasValue && names.TryGetValue(u.CreatedBy.Value, out var cName)) ? cName : null,
-            UpdatedDt      = u.UpdatedDt,
-            UpdatedBy      = u.UpdatedBy,
-            UpdatedByName  = (u.UpdatedBy.HasValue && names.TryGetValue(u.UpdatedBy.Value, out var uName)) ? uName : null
-        }).ToList();
-
-        return Ok(result);
+        var data = await _users.ListAsync(ct);
+        return Ok(data);
     }
 
     // GET /api/users/{id}
@@ -73,41 +37,8 @@ public class UsersController : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<UserDto>> GetById(int id, CancellationToken ct)
     {
-        var u = await _db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (u == null) return NotFound();
-
-        // carrega nomes apenas se necessário
-        string? createdByName = null, updatedByName = null;
-
-        if (u.CreatedBy.HasValue)
-            createdByName = await _db.Users
-                .AsNoTracking()
-                .Where(x => x.Id == u.CreatedBy.Value)
-                .Select(x => x.Name ?? x.Username)
-                .FirstOrDefaultAsync(ct);
-
-        if (u.UpdatedBy.HasValue)
-            updatedByName = await _db.Users
-                .AsNoTracking()
-                .Where(x => x.Id == u.UpdatedBy.Value)
-                .Select(x => x.Name ?? x.Username)
-                .FirstOrDefaultAsync(ct);
-
-        var dto = new UserDto
-        {
-            Id             = u.Id,
-            Username       = u.Username,
-            Name           = u.Name,
-            Email          = u.Email,
-            Active         = u.Active,
-            CreationDt     = u.CreationDt,
-            CreatedBy      = u.CreatedBy,
-            CreatedByName  = createdByName,
-            UpdatedDt      = u.UpdatedDt,
-            UpdatedBy      = u.UpdatedBy,
-            UpdatedByName  = updatedByName
-        };
-
+        var dto = await _users.GetByIdAsync(id, ct);
+        if (dto == null) return NotFound();
         return Ok(dto);
     }
 
@@ -127,48 +58,22 @@ public class UsersController : ControllerBase
             if (!val.IsValid) return BadRequest(val.Errors);
         }
 
-        // Duplicidades
-        if (await _db.Users.AnyAsync(x => x.Username == body.Username, ct))
+        // Duplicidades (via serviço)
+        if (await _users.UsernameExistsAsync(body.Username.Trim(), null, ct))
             return Conflict("Username already in use.");
 
-        if (await _db.Users.AnyAsync(x => x.Email == body.Email, ct))
+        if (await _users.EmailExistsAsync(body.Email.Trim(), null, ct))
             return Conflict("Email already in use.");
 
-        var creatorId = User.TryGetUserId(); 
+        var creatorId = User.TryGetUserId();
 
-        var user = new User
-        {
-            Username = body.Username.Trim(),
-            Email = body.Email.Trim(),
-            Name = body.Name.Trim(),
-            //Role     = role,
-            PasswordHash = _hasher.Hash(body.Password),
-            CreationDt = _dateTimeProvider.NowLocal,
-            Active = "Yes",
-            CreatedBy = creatorId
-            
-        };
+        var created = await _users.CreateAsync(body, creatorId, ct);
 
-        _db.Users.Add(user);
-        await _db.SaveChangesAsync(ct);
-        await _audit.LogAsync("Users.Create", $"Created user {user.Username}", ct);
+        await _audit.LogAsync("Users.Create", creatorId, $"Created user {created.Username}", ct);
 
-        var dto = new UserDto
-        {
-            Id        = user.Id,
-            Username  = user.Username,
-            Name      = user.Name,
-            Email     = user.Email,
-            Active    = user.Active,
-            CreatedBy = user.CreatedBy,
-            // Role   = user.Role
-            CreationDt = user.CreationDt
-        };
-
-        return CreatedAtAction(nameof(GetById), new { id = user.Id }, dto);
+        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
     }
 
-    
     // PUT /api/users/{id}
     [Authorize(Policy = "Perm:Users.Update")]
     [HttpPut("{id:int}")]
@@ -186,94 +91,38 @@ public class UsersController : ControllerBase
             if (!val.IsValid) return BadRequest(val.Errors);
         }
 
-        var user = await _db.Users.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (user == null) return NotFound();
-
-        // ---- Duplicidades e updates opcionais ----
-
-        // Username
+        // Duplicidades (se vier username/email novos)
         if (!string.IsNullOrWhiteSpace(body.Username))
         {
             var newUsername = body.Username.Trim();
-            var usernameExists = await _db.Users
-                .AnyAsync(x => x.Id != id && x.Username == newUsername, ct);
-            if (usernameExists) return Conflict("Username already in use.");
-            user.Username = newUsername;
+            if (await _users.UsernameExistsAsync(newUsername, id, ct))
+                return Conflict("Username already in use.");
         }
 
-        // Name (pode ser null)
-        if (body.Name != null) // atenção: aqui diferenciamos "não enviado" de "enviado vazio"
-        {
-            user.Name = string.IsNullOrWhiteSpace(body.Name) ? null : body.Name.Trim();
-        }
-
-        // Email
         if (!string.IsNullOrWhiteSpace(body.Email))
         {
             var newEmail = body.Email.Trim();
-            var emailExists = await _db.Users
-                .AnyAsync(x => x.Id != id && x.Email == newEmail, ct);
-            if (emailExists) return Conflict("Email already in use.");
-            user.Email = newEmail;
+            if (await _users.EmailExistsAsync(newEmail, id, ct))
+                return Conflict("Email already in use.");
         }
 
-        // Password
-        if (!string.IsNullOrWhiteSpace(body.Password))
+        var updaterId = User.TryGetUserId();
+
+        UserDto? updated;
+        try
         {
-            user.PasswordHash = _hasher.Hash(body.Password);
+            updated = await _users.UpdateAsync(id, body, updaterId, ct);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Active must be"))
+        {
+            return BadRequest(ex.Message);
         }
 
-        // Active (Yes/No)
-        if (!string.IsNullOrWhiteSpace(body.Active))
-        {
-            var v = body.Active.Trim();
-            var yes = v.Equals("Yes", StringComparison.OrdinalIgnoreCase);
-            var no  = v.Equals("No" , StringComparison.OrdinalIgnoreCase);
-            if (!yes && !no) return BadRequest("Active must be 'Yes' or 'No'.");
-            user.Active = yes ? "Yes" : "No";
-        }
+        if (updated == null) return NotFound();
 
-        var creatorId = User.TryGetUserId(); 
+        await _audit.LogAsync("Users.Update", updaterId, $"Updated user {updated.Username}", ct);
 
-        // ---- Auditoria ----
-        user.UpdatedBy = User.TryGetUserId();
-        user.UpdatedDt = _dateTimeProvider.NowLocal;
-
-        await _db.SaveChangesAsync(ct);
-        await _audit.LogAsync("Users.Update", $"Updated user {user.Username}", ct);
-
-
-        // ---- Monta DTO de retorno ----
-        string? createdByName = null, updatedByName = null;
-
-        if (user.CreatedBy.HasValue)
-            createdByName = await _db.Users.AsNoTracking()
-                .Where(x => x.Id == user.CreatedBy.Value)
-                .Select(x => x.Name ?? x.Username)
-                .FirstOrDefaultAsync(ct);
-
-        if (user.UpdatedBy.HasValue)
-            updatedByName = await _db.Users.AsNoTracking()
-                .Where(x => x.Id == user.UpdatedBy.Value)
-                .Select(x => x.Name ?? x.Username)
-                .FirstOrDefaultAsync(ct);
-
-        var dto = new UserDto
-        {
-            Id             = user.Id,
-            Username       = user.Username,
-            Name           = user.Name,
-            Email          = user.Email,
-            Active         = user.Active,
-            CreationDt     = user.CreationDt,
-            CreatedBy      = user.CreatedBy,
-            CreatedByName  = createdByName,
-            UpdatedDt      = user.UpdatedDt,
-            UpdatedBy      = user.UpdatedBy,
-            UpdatedByName  = updatedByName
-        };
-
-        return Ok(dto);
+        return Ok(updated);
     }
 
     // DELETE /api/users/{id}
@@ -281,22 +130,16 @@ public class UsersController : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(x => x.Id == id, ct);
-        if (user == null) return NotFound();
+        // (Opcional) impedir auto-exclusão pelo username:
+        // aqui você teria que buscar o usuário primeiro se quiser essa regra via service
 
-        // (Opcional) impedir auto-exclusão pelo username
-        if (string.Equals(User?.Identity?.Name, user.Username, StringComparison.Ordinal))
-            return BadRequest("You cannot delete your own account.");
+        var deleterId = User.TryGetUserId();
 
-        // Soft delete + auditoria
-        user.Active    = "No";
-        user.UpdatedBy = User.TryGetUserId();
-        user.UpdatedDt = _dateTimeProvider.NowLocal;
+        var ok = await _users.SoftDeleteAsync(id, deleterId, ct);
+        if (!ok) return NotFound();
 
-        await _db.SaveChangesAsync(ct);
-        await _audit.LogAsync("Users.Delete", $"Soft-deleted user {user.Username}", ct);
+        await _audit.LogAsync("Users.Delete", deleterId, $"Soft-deleted user #{id}", ct);
 
         return NoContent();
     }
-
 }

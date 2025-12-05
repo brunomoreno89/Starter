@@ -78,6 +78,10 @@ public class HolidaysService : IHolidaysService
                 UpdatedByName   = HasColumn(reader, "UpdatedByName") &&
                                   !reader.IsDBNull(reader.GetOrdinal("UpdatedByName"))
                                    ? reader.GetString(reader.GetOrdinal("UpdatedByName"))
+                                   : null,
+                BranchDescription   = HasColumn(reader, "BranchDescription") &&
+                                  !reader.IsDBNull(reader.GetOrdinal("BranchDescription"))
+                                   ? reader.GetString(reader.GetOrdinal("BranchDescription"))
                                    : null
             };
 

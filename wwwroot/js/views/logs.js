@@ -48,7 +48,7 @@ export async function LogsView(container){
       <h2 class="view-title">Logs</h2>
     </div>
 
-    <div class="toolbar" style="display:flex; gap:8px; flex-wrap:wrap; align-items:end;">
+    <div class="toolbar compact" style="display:flex; gap:8px; flex-wrap:wrap; align-items:end;">
       <div class="field">
         <label for="fUser">User</label>
         <select id="fUser" class="input" style="min-width:220px">

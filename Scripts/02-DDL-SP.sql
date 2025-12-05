@@ -911,6 +911,7 @@ BEGIN
         h.HolidayDate,
         h.Description,
         h.BranchId,
+        bc.Description as BranchDescription,
         h.CreatedAt,
         h.CreatedByUserId,
         h.UpdatedAt,
@@ -921,6 +922,7 @@ BEGIN
     FROM Holidays h
     LEFT JOIN Users cb ON cb.Id = h.CreatedByUserId
     LEFT JOIN Users ub ON ub.Id = h.UpdatedByUserId
+    left join Branches bc on h.BranchId = bc.Id
     ORDER BY h.HolidayDate, h.Id;
 END
 GO
@@ -939,6 +941,7 @@ BEGIN
         h.HolidayDate,
         h.Description,
         h.BranchId,
+        bc.Description as BranchDescription,
         h.CreatedAt,
         h.CreatedByUserId,
         h.UpdatedAt,
@@ -949,6 +952,7 @@ BEGIN
     FROM Holidays h
     LEFT JOIN Users cb ON cb.Id = h.CreatedByUserId
     LEFT JOIN Users ub ON ub.Id = h.UpdatedByUserId
+    left join Branches bc on h.BranchId = bc.Id
     WHERE h.Id = @Id;
 END
 GO

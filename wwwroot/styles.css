@@ -33,6 +33,7 @@ body.light {
 html, body { height: 100%; }
 body {
   margin: 0;
+  font-size: 12px;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
@@ -81,7 +82,7 @@ button.primary {
   background: var(--accent);
   border: none;
   color: var(--on-accent);
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-radius: 10px;
   cursor:pointer;
 }
@@ -89,7 +90,7 @@ button.secondary {
   background: transparent;
   border:1px solid var(--border);
   color: var(--text);
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-radius: 10px;
   cursor:pointer;
 }
@@ -198,3 +199,57 @@ button.secondary {
 button.danger { background:#c0392b; border-color:#a93226; color:#fff; }
 button.danger:hover { filter: brightness(0.95); }
 
+/* --- Compact mode (small controls) ---------------------------- */
+
+.compact input,
+.compact select,
+.compact textarea {
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.compact button {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+.compact .icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+}
+
+.compact .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.compact .field label {
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+/* --- Compact Table Mode --------------------------------------- */
+
+.compact-table .table th,
+.compact-table .table td {
+  padding: 4px 6px;     /* reduz o espaçamento vertical e horizontal */
+  font-size: 13px;      /* fonte menor para visual corporativo */
+}
+
+.compact-table .table th {
+  font-weight: 600;
+}
+
+.compact-table .icon-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+}
+
+.compact-table .icon {
+  width: 14px;
+  height: 14px;
+}

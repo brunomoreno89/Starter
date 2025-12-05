@@ -209,6 +209,27 @@ export async function createItem(dto){ return fetchJSON('/items',{method:'POST',
 export async function updateItem(id,dto){ return fetchJSON('/items/'+id,{method:'PUT', body:dto}); }
 export async function deleteItem(id){ return fetchJSON('/items/'+id,{method:'DELETE'}); }
 
+// ---- API: Holidays ----
+export async function listHolidays(){ return fetchJSON('/holidays'); }
+export async function getHoliday(id){ return fetchJSON('/holidays/'+id); }
+export async function createHoliday(dto){ return fetchJSON('/holidays',{method:'POST', body:dto}); }
+export async function updateHoliday(id,dto){ return fetchJSON('/holidays/'+id,{method:'PUT', body:dto}); }
+export async function deleteHoliday(id){ return fetchJSON('/holidays/'+id,{method:'DELETE'}); }
+
+// ---- API: Regions ----
+export async function listRegions(){ return fetchJSON('/regions'); }
+export async function getRegion(id){ return fetchJSON('/regions/'+id); }
+export async function createRegion(dto){ return fetchJSON('/regions',{method:'POST', body:dto}); }
+export async function updateRegion(id,dto){ return fetchJSON('/regions/'+id,{method:'PUT', body:dto}); }
+export async function deleteRegion(id){ return fetchJSON('/regions/'+id,{method:'DELETE'}); }
+
+// ---- API: Branches ----
+export async function listBranches(){ return fetchJSON('/branches'); }
+export async function getBranch(id){ return fetchJSON('/branches/'+id); }
+export async function createBranch(dto){ return fetchJSON('/branches',{method:'POST', body:dto}); }
+export async function updateBranch(id,dto){ return fetchJSON('/branches/'+id,{method:'PUT', body:dto}); }
+export async function deleteBranch(id){ return fetchJSON('/branches/'+id,{method:'DELETE'}); }
+
 // ---- API: Permissions ----
 export async function listPermissions(){ return fetchJSON('/permissions'); }
 export async function getPermission(id){ return fetchJSON('/permissions/'+id); }

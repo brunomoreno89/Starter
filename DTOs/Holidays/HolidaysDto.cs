@@ -15,5 +15,7 @@ public class HolidaysDto
 
     public string? CreatedByName { get; set; }
     public string? UpdatedByName { get; set; }
+
+    public string? BranchDescription  { get; set; }
     
 }

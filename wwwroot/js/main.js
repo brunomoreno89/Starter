@@ -14,6 +14,9 @@ import { RolePermissionsView } from './views/role-permissions.js';
 import { UserRolesView } from './views/user-roles.js';
 import { SettingsView } from './views/settings.js';
 import { StaticDataView } from './views/static-data.js';
+import { HolidaysView } from './views/holidays.js';
+//import { RegionsView } from './views/regions.js';
+//import { BranchesView } from './views/branches.js';
 
 
 function bootTheme(){
@@ -35,6 +38,9 @@ addRoute('/role-permissions', RolePermissionsView, { auth:true, perm:'RolePermis
 addRoute('/user-roles', UserRolesView, { auth:true, perm:'UserRoles.Assign' });
 addRoute('/settings', SettingsView, { auth:true, perm:'Settings.Access' });
 addRoute('/static-data', StaticDataView, { auth:true, perm:'StaticData.Read' });
+addRoute('/holidays', HolidaysView, { auth:true, perm:'Holidays.Read' });
+//addRoute('/regions', RegionsView, { auth:true, perm:'Regions.Read' });
+//addRoute('/branches', BranchesView, { auth:true, perm:'Branches.Read' });
 
 function rerender(){
   renderNavbar();

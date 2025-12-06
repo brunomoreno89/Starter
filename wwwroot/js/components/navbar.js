@@ -1,135 +1,233 @@
 // wwwroot/js/components/navbar.js
-import { auth, isSessionValid, logout } from '../api.js';
-import { navigate } from '../router.js';
+import { auth, isSessionValid, logout } from "../api.js";
+import { navigate } from "../router.js";
 
-let currentAccessTab = window.__acActiveTab || 'users';
+/* ============================================================
+   CONFIGURAÇÃO DOS MÓDULOS (MENU DINÂMICO)
+   Cada módulo controla:
+   - título
+   - abas e dropdowns
+   - eventos
+   - armazenamento do tab ativo
+============================================================ */
 
-window.addEventListener('ac-tab-changed', ev => {
-  if (ev.detail?.key) {
-    currentAccessTab = ev.detail.key;
-    window.__acActiveTab = currentAccessTab;
-    renderNavbar();
+const MODULE_MENUS = {
+  "/access": {
+    title: "Access Control",
+    storageKey: "__acActiveTab",
+    defaultTab: "users",
+    eventChange: "ac-tab-change",
+    eventChanged: "ac-tab-changed",
+    groups: [
+      {
+        label: "Register",
+        items: [
+          { key: "users", label: "Users" },
+          { key: "roles", label: "Roles" },
+          { key: "permissions", label: "Permissions" }
+        ]
+      },
+      {
+        label: "Cross Register",
+        items: [
+          { key: "roleperms", label: "Role × Permissions" },
+          { key: "userroles", label: "User × Roles" }
+        ]
+      }
+    ]
+  },
+
+  "/items": {
+    title: "Items",
+    storageKey: "__itemsActiveTab",
+    defaultTab: "list",
+    eventChange: "items-tab-change",
+    eventChanged: "items-tab-changed",
+    groups: [
+      {
+        label: "Register",
+        items: [
+          { key: "list", label: "List" },
+          { key: "create", label: "New Item" }
+        ]
+      }
+    ]
+  },
+
+  "/static-data": {
+    title: "Static Data",
+    storageKey: "__staticActiveTab",
+    defaultTab: "countries",
+    eventChange: "static-tab-change",
+    eventChanged: "static-tab-changed",
+    groups: [
+      {
+        label: "Register",
+        items: [
+          { key: "countries", label: "Countries" },
+          { key: "states", label: "States" }
+        ]
+      }
+    ]
+  },
+
+  "/logs": {
+    title: "Logs",
+    storageKey: "__logsActiveTab",
+    defaultTab: "system",
+    eventChange: "logs-tab-change",
+    eventChanged: "logs-tab-changed",
+    groups: [
+      {
+        label: "Filter",
+        items: [
+          { key: "system", label: "System Logs" },
+          { key: "access", label: "Access Logs" }
+        ]
+      }
+    ]
   }
-});
+};
 
-function getModuleTitle(path) {
-  switch (path) {
-    case '/access': return "Access Control";
-    default: return "";
-  }
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function getModuleConfig(path) {
+  return MODULE_MENUS[path] || null;
 }
 
+function getActiveTab(cfg) {
+  return window[cfg.storageKey] || cfg.defaultTab;
+}
+
+function setActiveTab(cfg, key) {
+  window[cfg.storageKey] = key;
+}
+
+/* ============================================================
+   RENDER DO MENU DO MÓDULO
+============================================================ */
+
 export function renderNavbar() {
-  const hash = (location.hash || '#/home').replace('#', '');
-  const currentPath = hash.split('?')[0];
+  const hash = (location.hash || "#/home").replace("#", "");
+  const currentPath = hash.split("?")[0];
 
   renderUserArea();
   renderModuleMenu(currentPath);
 }
 
 function renderModuleMenu(currentPath) {
-  const navbar = document.querySelector('.navbar');
+  const navbar = document.querySelector(".navbar");
   if (!navbar) return;
 
-  let sub = document.getElementById('module-links');
+  let sub = document.getElementById("module-links");
   if (!sub) {
-    sub = document.createElement('div');
-    sub.id = 'module-links';
-    sub.className = 'subnav';
+    sub = document.createElement("div");
+    sub.id = "module-links";
+    sub.className = "subnav";
     navbar.appendChild(sub);
   }
 
-  const title = getModuleTitle(currentPath);
-  const isModule = !!title;
-
-  if (!isModule) {
-    sub.style.display = 'none';
-    sub.innerHTML = '';
+  const cfg = getModuleConfig(currentPath);
+  if (!cfg) {
+    sub.style.display = "none";
+    sub.innerHTML = "";
     return;
   }
 
-  sub.style.display = 'flex';
-  sub.innerHTML = '';
+  sub.style.display = "flex";
+  sub.innerHTML = "";
 
-  // título
-  const titleEl = document.createElement('span');
-  titleEl.className = 'nav-module-title';
-  titleEl.textContent = title;
+  // Título
+  const titleEl = document.createElement("span");
+  titleEl.className = "nav-module-title";
+  titleEl.textContent = cfg.title;
   sub.appendChild(titleEl);
 
-  const actions = document.createElement('div');
-  actions.className = 'subnav-actions';
+  // Ações
+  const actions = document.createElement("div");
+  actions.className = "subnav-actions";
 
-  actions.appendChild(buildDropdown("Register", [
-    { key: "users", label: "Users" },
-    { key: "roles", label: "Roles" },
-    { key: "permissions", label: "Permissions" }
-  ]));
+  const currentTab = getActiveTab(cfg);
 
-  actions.appendChild(buildDropdown("Cross Register", [
-    { key: "roleperms", label: "Role × Permissions" },
-    { key: "userroles", label: "User × Roles" }
-  ]));
+  cfg.groups.forEach(group => {
+    actions.appendChild(buildDropdown(cfg, group.label, group.items, currentTab));
+  });
 
   sub.appendChild(actions);
 }
 
-function buildDropdown(label, items) {
-  const wrap = document.createElement('div');
-  wrap.className = 'dropdown';
+function buildDropdown(cfg, groupLabel, items, currentTab) {
+  const wrap = document.createElement("div");
+  wrap.className = "dropdown";
 
   wrap.innerHTML = `
-    <button class="dropdown-toggle">${label} ▾</button>
+    <button class="dropdown-toggle">${groupLabel} ▾</button>
     <div class="dropdown-menu"></div>
   `;
 
-  const menu = wrap.querySelector('.dropdown-menu');
+  const menu = wrap.querySelector(".dropdown-menu");
 
   items.forEach(it => {
-    const btn = document.createElement('button');
-    btn.className = 'dropdown-item';
+    const btn = document.createElement("button");
+    btn.className = "dropdown-item";
     btn.textContent = it.label;
-    if (it.key === currentAccessTab) btn.classList.add('active');
+
+    if (it.key === currentTab) btn.classList.add("active");
 
     btn.onclick = () => {
-      currentAccessTab = it.key;
-      window.__acActiveTab = it.key;
-      window.dispatchEvent(new CustomEvent("ac-tab-change", { detail: { key: it.key } }));
+      setActiveTab(cfg, it.key);
+
+      window.dispatchEvent(
+        new CustomEvent(cfg.eventChange, { detail: { key: it.key } })
+      );
+
+      menu.classList.remove("open");
       renderNavbar();
-      menu.classList.remove('open');
     };
 
     menu.appendChild(btn);
   });
 
-  wrap.querySelector('.dropdown-toggle').onclick = (e) => {
+  wrap.querySelector(".dropdown-toggle").onclick = e => {
     e.stopPropagation();
-    document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
-    menu.classList.toggle('open');
+    document
+      .querySelectorAll(".dropdown-menu.open")
+      .forEach(m => m.classList.remove("open"));
+    menu.classList.toggle("open");
   };
 
   return wrap;
 }
 
-// click fora fecha dropdown
-window.addEventListener('click', () => {
-  document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+/* Fecha dropdown ao clicar fora */
+window.addEventListener("click", () => {
+  document.querySelectorAll(".dropdown-menu.open").forEach(m => m.classList.remove("open"));
 });
 
+/* ============================================================
+   ÁREA DO USUÁRIO (Home, Settings, Logout)
+============================================================ */
+
 export function renderUserArea() {
-  const el = document.getElementById('topUserArea');
+  const el = document.getElementById("topUserArea");
   if (!el) return;
 
-  el.innerHTML = '';
+  el.innerHTML = "";
 
-  const wrap = document.createElement('div');
-  wrap.className = 'top-actions';
+  if (!isSessionValid()) return;
 
-  const label = document.createElement('span');
-  label.className = 'label';
-  label.textContent = `Logged User: ${auth.username}`;
+  const wrap = document.createElement("div");
+  wrap.className = "top-actions";
+
+  // Label com usuário
+  const label = document.createElement("span");
+  label.className = "label";
+  label.textContent = "Logged User: " + auth.username;
   wrap.appendChild(label);
 
+  // HOME
   const homeBtn = document.createElement('button');
   homeBtn.className = 'icon-btn';
   homeBtn.innerHTML = `
@@ -172,9 +270,13 @@ export function renderUserArea() {
   };
   wrap.appendChild(signOutBtn);
 
-
   el.appendChild(wrap);
 }
 
-// rerender ao trocar rota
-window.addEventListener('hashchange', renderNavbar);
+/* Re-render ao trocar hash */
+window.addEventListener("hashchange", renderNavbar);
+
+
+// -------
+
+  

@@ -1,5 +1,5 @@
-
 * { box-sizing: border-box; }
+
 :root {
   /* Base (dark) */
   --bg: #0b1220;
@@ -31,25 +31,67 @@ body.light {
 }
 
 html, body { height: 100%; }
+
 body {
   margin: 0;
   font-size: 12px;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
-  padding-top: 84px;
-  padding-bottom: 48px;
+  
+  /* altura reservada para topbar + navbar + footer */
+  --top-offset: 84px;      /* topbar (48) + navbar (~36) */
+  --bottom-offset: 48px;   /* footer */
+
+  padding-top: var(--top-offset);
+  padding-bottom: var(--bottom-offset);
+}
+
+body.no-navbar {
+  --top-offset: 48px;      /* só topbar */
 }
 
 /* Top bar / Navbar / Footer use --surface so they theme switch */
-.topbar { position: fixed; top: 0; left: 0; right: 0; background: var(--surface); border-bottom: 1px solid var(--border); z-index: 100; }
-.topbar-inner { max-width: none; width: 100%; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; }
+.topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  z-index: 100;
+}
+.topbar-inner {
+  max-width: none;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+}
 .brand { font-weight: 700; color: var(--text); }
 .user { color: var(--muted); }
 
-.navbar { position: sticky; top: 48px; z-index: 90; background: var(--surface); border-bottom: 1px solid var(--border); }
-.links { max-width: none; width: 100%; margin: 0 auto; padding: 8px 16px; display: flex; gap: 10px; }
-.links a, .links button {
+.navbar {
+  position: sticky;
+  top: 48px;
+  z-index: 90;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+/* linha “principal” da navbar – hoje fica vazia, mas mantém altura */
+.links {
+  max-width: none;
+  width: 100%;
+  margin: 0 auto;
+  padding: 8px 16px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-right: 10px;
+}
+.links a,
+.links button {
   color: var(--text);
   text-decoration: none;
   background: transparent;
@@ -63,9 +105,20 @@ body {
   border-color: var(--accent);
   color: var(--on-accent);
 }
-.links a:hover, .links button:hover { border-color: var(--accent); }
+.links a:hover,
+.links button:hover {
+  border-color: var(--accent);
+}
 
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin: 16px auto; max-width: none; width: 100%; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px auto;
+  max-width: none;
+  width: 100%;
+}
 h1,h2 { margin: 0 0 8px 0; }
 label { display:block; margin: 8px 0 4px; color: var(--muted); }
 
@@ -96,10 +149,21 @@ button.secondary {
 }
 
 .table { width:100%; border-collapse: collapse; margin-top: 8px; }
-.table th, .table td { border-bottom: 1px solid var(--border); padding: 8px; text-align: left; }
+.table th, .table td {
+  border-bottom: 1px solid var(--border);
+  padding: 8px;
+  text-align: left;
+}
 .actions button { margin-right: 6px; }
 
-.alert { background: color-mix(in oklab, var(--surface) 70%, #000 0%); border:1px solid var(--border); padding:10px; border-radius:10px; color: var(--text); margin:16px 0; }
+.alert {
+  background: color-mix(in oklab, var(--surface) 70%, #000 0%);
+  border:1px solid var(--border);
+  padding:10px;
+  border-radius:10px;
+  color: var(--text);
+  margin:16px 0;
+}
 .success { border-color:#2f855a; }
 .error { border-color:#9b2c2c; }
 
@@ -110,14 +174,50 @@ button.secondary {
 
 /* Tabs */
 .tabs { margin: 8px 0 0 0; }
-.tab-list { display:flex; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding: 0 16px; }
-.tab { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 10px 10px 0 0; cursor:pointer; margin-bottom:-1px; }
-.tab.active { border-color: var(--accent); border-bottom-color: var(--card); color: var(--text); }
-.tab-panel { background: var(--card); border: 1px solid var(--border); border-top: none; padding: 16px; border-radius: 0 12px 12px 12px; }
+.tab-list {
+  display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+}
+.tab {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 10px 10px 0 0;
+  cursor:pointer;
+  margin-bottom:-1px;
+}
+.tab.active {
+  border-color: var(--accent);
+  border-bottom-color: var(--card);
+  color: var(--text);
+}
+.tab-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-top: none;
+  padding: 16px;
+  border-radius: 0 12px 12px 12px;
+}
 
 /* Bottom fixed footer */
-.app-footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); z-index: 100; }
-.app-footer-inner { max-width: none; width: 100%; margin: 0 auto; padding: 8px 16px; color: var(--muted); }
+.app-footer {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  z-index: 100;
+}
+.app-footer-inner {
+  max-width: none;
+  width: 100%;
+  margin: 0 auto;
+  padding: 8px 16px;
+  color: var(--muted);
+}
 
 /* Icon buttons */
 .icon-btn {
@@ -133,7 +233,11 @@ button.secondary {
   cursor: pointer;
 }
 .icon-btn:hover { border-color: var(--accent); }
-.icon { width: 18px; height: 18px; display: inline-block; }
+.icon {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+}
 
 /* Modal */
 .modal-backdrop {
@@ -155,31 +259,87 @@ button.secondary {
   box-shadow: 0 10px 30px rgba(0,0,0,0.3);
 }
 .modal header {
-  display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom: 8px;
 }
-.modal footer { display:flex; gap:8px; justify-content:flex-end; margin-top: 12px; }
+.modal footer {
+  display:flex;
+  gap:8px;
+  justify-content:flex-end;
+  margin-top: 12px;
+}
 .modal .close-btn {
-  background: transparent; border: 1px solid var(--border); color: var(--text);
-  width: 32px; height: 32px; border-radius: 6px; cursor:pointer;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor:pointer;
 }
 .modal .close-btn:hover { border-color: var(--accent); }
 
-/* Topbar actions */
-.top-actions { display: flex; align-items: center; gap: 8px; }
+/* Topbar actions (ícones e user) */
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 .top-actions .label { color: var(--muted); margin-right: 4px; }
-.top-actions .icon-btn { height: 32px; width: 36px; }
+/* --- Ícones da Topbar (Home / Settings / Logout) --- */
+
+.top-actions .icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: 32px;
+
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 6px;
+}
+
+.top-actions .icon-btn:hover {
+  background: var(--card);
+  border-color: var(--accent);
+}
+
+.top-actions .icon {
+  width: 18px;
+  height: 18px;
+  stroke: var(--text);
+}
 
 
 /* Responsive table wrapper */
 .table-wrap { width: 100%; overflow-x: auto; }
 
-
-.view-header { display:flex; align-items:center; justify-content:space-between; gap: 12px; margin-bottom: 8px; }
+.view-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  margin-top: 12px;
+}
 .view-title { margin: 0; }
-.btn-ghost { background: transparent; border: 1px dashed var(--border); color: var(--text); padding: 8px 12px; border-radius: 10px; cursor:pointer; }
+
+.btn-ghost {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor:pointer;
+}
 .btn-ghost:hover { border-color: var(--accent); }
 
-/* styles.css */
+/* LOGIN */
 .login-viewport{
   display:flex;
   align-items:center;
@@ -188,15 +348,18 @@ button.secondary {
   min-height: calc(100vh - var(--top-offset,84px) - var(--bottom-offset,48px));
   padding:16px;
 }
-
 .login-card{
   width: 300px;         /* menor e fixo */
   max-width: 90vw;      /* segurança em telas muito estreitas */
   margin: 0 !important; /* neutraliza margens padrões do .card */
 }
 
-/* em seu css global */
-button.danger { background:#c0392b; border-color:#a93226; color:#fff; }
+/* Botão danger */
+button.danger {
+  background:#c0392b;
+  border-color:#a93226;
+  color:#fff;
+}
 button.danger:hover { filter: brightness(0.95); }
 
 /* --- Compact mode (small controls) ---------------------------- */
@@ -208,24 +371,20 @@ button.danger:hover { filter: brightness(0.95); }
   padding: 6px 8px;
   border-radius: 8px;
 }
-
 .compact button {
   font-size: 13px;
   padding: 6px 10px;
   border-radius: 8px;
 }
-
 .compact .icon-btn {
   width: 30px;
   height: 30px;
   border-radius: 6px;
 }
-
 .compact .icon {
   width: 16px;
   height: 16px;
 }
-
 .compact .field label {
   font-size: 12px;
   margin-bottom: 2px;
@@ -238,18 +397,138 @@ button.danger:hover { filter: brightness(0.95); }
   padding: 4px 6px;     /* reduz o espaçamento vertical e horizontal */
   font-size: 13px;      /* fonte menor para visual corporativo */
 }
-
 .compact-table .table th {
   font-weight: 600;
 }
-
 .compact-table .icon-btn {
   width: 26px;
   height: 26px;
   border-radius: 6px;
 }
-
 .compact-table .icon {
   width: 14px;
   height: 14px;
+}
+
+/* Dashboard de Módulos */
+.module-grid {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 20px;
+}
+.module-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.module-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-4px);
+}
+.module-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+.module-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Container padrão para as views */
+.view-container {
+  padding: 0 24px;  /* espaçamento horizontal */
+}
+
+/* -------------------------------------
+   BARRA DO MÓDULO (Access / etc.)
+--------------------------------------*/
+
+.subnav {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-module-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-right: 24px;
+}
+
+.subnav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Dropdown genérico (navbar / módulo) */
+.dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+.dropdown-toggle {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.dropdown-toggle:hover {
+  background: var(--card);
+}
+
+/* Menu flutuante */
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  min-width: 160px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+  padding: 6px 0;
+  z-index: 300;
+  display: none;
+}
+
+/* Classe usada pelo JS para mostrar o menu */
+.dropdown-menu.open {
+  display: block;
+}
+
+/* Itens do menu */
+.dropdown-item {
+  width: 100%;
+  text-align: left;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+}
+.dropdown-item:hover {
+  background: color-mix(in oklab, var(--surface) 70%, #000 0%);
+}
+.dropdown-item.active {
+  background: var(--accent);
+  color: var(--on-accent);
 }

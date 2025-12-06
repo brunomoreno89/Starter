@@ -13,120 +13,130 @@ import {
   // util
   errorToString, auth
 } from '../api.js';
+
 import { getPageSize, paginate, renderPager } from '../ui/pager.js';
 import { formatDateToBR } from '../utils/date.js';
 import { openModal, openConfirm } from '../ui/modal.js';
 
-const can = (perm) => auth.hasPerm(perm) || auth.hasRole('Admin');
+const can = (perm) => auth.hasPerm(perm) || auth.hasRole("Admin");
 
-function icon(name){
-  if (name==='edit')  return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`;
-  if (name==='trash') return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>`;
-  if (name==='plus')  return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>`;
-  return '';
-}
+/* -----------------------------------------------------------------
+   ACCESS VIEW  (SEM MENU INTERNO – CONTROLADO PELA NAVBAR)
+------------------------------------------------------------------ */
 
-function showMsgFromPane(pane, text, isError=false){
-  const root = pane.closest('.card') || document;
-  const el = root.querySelector('#ac-msg'); if(!el) return;
-  el.className = 'alert ' + (isError ? 'error' : 'success');
-  el.textContent = text;
-  setTimeout(()=>{ el.className='alert hidden'; }, 2000);
-}
-
-export async function AccessView(container){
+export async function AccessView(container) {
   container.innerHTML = `
     <div class="card">
-      <div class="view-header">
-        <h2 class="view-title">Access Control</h2>
-      </div>
 
-      <div class="tabs" id="ac-tabs"></div>
-      <div id="ac-msg" class="alert hidden" style="margin-top:8px;"></div>
+      <div id="ac-msg" class="alert hidden"></div>
 
-      <div id="pane-users"        class="ac-pane hidden"></div>
-      <div id="pane-roles"        class="ac-pane hidden"></div>
-      <div id="pane-permissions"  class="ac-pane hidden"></div>
-      <div id="pane-roleperms"    class="ac-pane hidden"></div>
-      <div id="pane-userroles"    class="ac-pane hidden"></div>
+      <div id="pane-users" class="ac-pane hidden"></div>
+      <div id="pane-roles" class="ac-pane hidden"></div>
+      <div id="pane-permissions" class="ac-pane hidden"></div>
+      <div id="pane-roleperms" class="ac-pane hidden"></div>
+      <div id="pane-userroles" class="ac-pane hidden"></div>
+
     </div>
   `;
 
   const TABS = [
-    { key:'users',        label:'Users',              perm:'Users.Read',             render: renderUsers },
-    { key:'roles',        label:'Roles',              perm:'Roles.Read',             render: renderRoles },
-    { key:'permissions',  label:'Permissions',        perm:'Permissions.Read',       render: renderPermissions },
-    { key:'roleperms',    label:'Role × Permissions', perm:'RolePermissions.Assign', render: renderRolePermissions },
-    { key:'userroles',    label:'User × Roles',       perm:'UserRoles.Assign',       render: renderUserRoles },
+    { key: "users",       label: "Users",              perm: "Users.Read",             render: renderUsers },
+    { key: "roles",       label: "Roles",              perm: "Roles.Read",             render: renderRoles },
+    { key: "permissions", label: "Permissions",        perm: "Permissions.Read",       render: renderPermissions },
+    { key: "roleperms",   label: "Role × Permissions", perm: "RolePermissions.Assign", render: renderRolePermissions },
+    { key: "userroles",   label: "User × Roles",       perm: "UserRoles.Assign",       render: renderUserRoles }
   ];
 
-  const tabsHost = container.querySelector('#ac-tabs');
-  const visibleTabs = TABS.filter(t => can(t.perm));
-  if (visibleTabs.length === 0){
-    tabsHost.innerHTML = `<div class="alert error">You don't have permission to access this area.</div>`;
+  const visible = TABS.filter(t => can(t.perm));
+
+  const msg = container.querySelector('#ac-msg');
+  if (!visible.length) {
+    msg.classList.remove('hidden');
+    msg.innerHTML = `You don't have permission to access this module.`;
     return;
   }
-  tabsHost.innerHTML = '';
-  for (const t of visibleTabs){
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'tab';
-    b.dataset.key = t.key;
-    b.textContent = t.label;
-    b.addEventListener('click', ()=> activateTab(t.key));
-    tabsHost.appendChild(b);
-  }
 
-  await activateTab(visibleTabs[0].key);
+  let activeKey = window.__acActiveTab || visible[0].key;
 
-  async function activateTab(key){
-    tabsHost.querySelectorAll('.tab').forEach(btn=>{
-      btn.classList.toggle('active', btn.dataset.key === key);
-    });
-    container.querySelectorAll('.ac-pane').forEach(p => p.classList.add('hidden'));
-    const paneId = {
-      users:'pane-users', roles:'pane-roles', permissions:'pane-permissions',
-      roleperms:'pane-roleperms', userroles:'pane-userroles'
-    }[key];
-    const pane = container.querySelector('#'+paneId);
-    pane.classList.remove('hidden');
-
+  async function activateTab(key) {
+    if (!key) return;
     const tab = TABS.find(t => t.key === key);
     if (!tab) return;
-    try{
+    if (!can(tab.perm)) return;
+
+    activeKey = key;
+    window.__acActiveTab = key;
+
+    // esconde todos os panes
+    container.querySelectorAll(".ac-pane").forEach(p =>
+      p.classList.add("hidden")
+    );
+
+    const paneId = {
+      users:       "pane-users",
+      roles:       "pane-roles",
+      permissions: "pane-permissions",
+      roleperms:   "pane-roleperms",
+      userroles:   "pane-userroles"
+    }[key];
+
+    const pane = container.querySelector("#" + paneId);
+    if (!pane) return;
+    pane.classList.remove("hidden");
+
+    try {
       await tab.render(pane, container);
-    }catch(e){
-      showMsgFromPane(pane, errorToString(e), true);
-      pane.innerHTML = `<div class="alert error">${errorToString(e)}</div>`;
+
+      // avisa a NAVBAR qual aba está ativa
+      window.dispatchEvent(new CustomEvent("ac-tab-changed", {
+        detail: { key }
+      }));
+    } catch (err) {
+      pane.innerHTML = `<div class="alert error">${errorToString(err)}</div>`;
     }
   }
+
+  // listener vindo da NAVBAR (clicou no dropdown lá em cima)
+  if (window.__acTabChangeHandler) {
+    window.removeEventListener("ac-tab-change", window.__acTabChangeHandler);
+  }
+
+  window.__acTabChangeHandler = (ev) => {
+    const key = ev.detail?.key;
+    if (!key || key === activeKey) return;
+    activateTab(key);
+  };
+
+  window.addEventListener("ac-tab-change", window.__acTabChangeHandler);
+
+  // primeira aba
+  await activateTab(activeKey);
 }
 
-/* ---------- USERS (com Active) ---------- */
-async function renderUsers(pane){
-  const allowCreate = can('Users.Create');
-  const allowUpdate = can('Users.Update');
-  const allowDelete = can('Users.Delete');
+
+
+/* -----------------------------------------------------------------
+   RENDER USERS
+------------------------------------------------------------------ */
+
+async function renderUsers(pane) {
+  const allowCreate = can("Users.Create");
+  const allowUpdate = can("Users.Update");
+  const allowDelete = can("Users.Delete");
 
   pane.innerHTML = `
     <div class="view-header">
       <h3>Users</h3>
-      ${allowCreate?`<button class="icon-btn" id="uNew" title="New user">${icon('plus')}</button>`:''}
+      ${allowCreate ? `<button class="icon-btn" id="uNew">+</button>` : ""}
     </div>
-    <div class="table-wrap">
+
+    <div class="table-wrap compact-table">
       <table class="table">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Username</th>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Active</th>
-            <th>Creation Dt</th>
-            <th>Created By</th>
-            <th>Update Dt</th>
-            <th>Updated By</th>
-            <th style="width:110px; text-align:right;"></th>
+            <th>ID</th><th>Username</th><th>Name</th><th>Email</th>
+            <th>Active</th><th>Creation Dt</th><th>Created By</th>
+            <th>Update Dt</th><th>Updated By</th><th></th>
           </tr>
         </thead>
         <tbody id="uBody"></tbody>
@@ -137,262 +147,270 @@ async function renderUsers(pane){
 
   let page = 1;
   let data = [];
-  async function reload(){
-    try{ data = await listUsers(); }catch(e){ showMsgFromPane(pane, errorToString(e), true); data = []; }
+
+  async function reload() {
+    try { data = await listUsers(); }
+    catch (e) { data = []; }
     fill();
   }
-  function fill(){
-    const tb = pane.querySelector('#uBody'); tb.innerHTML='';
+
+  function fill() {
+    const tb = pane.querySelector("#uBody");
+    tb.innerHTML = "";
+
     const { items, total, pages } = paginate(data, page, getPageSize());
-    for (const u of items){
-      const tr = document.createElement('tr');
+
+    for (const u of items) {
+      const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${u.id}</td>
-        <td>${u.username||''}</td>
-        <td>${u.name||''}</td>
-        <td>${u.email||''}</td>
+        <td>${u.username}</td>
+        <td>${u.name}</td>
+        <td>${u.email}</td>
         <td>${u.active}</td>
         <td>${formatDateToBR(u.creationDt)}</td>
-        <td>${u.createdByName ?? ''}</td>
+        <td>${u.createdByName ?? ""}</td>
         <td>${formatDateToBR(u.updatedDt)}</td>
-        <td>${u.updatedByName ?? ''}</td>
+        <td>${u.updatedByName ?? ""}</td>
         <td style="text-align:right;">
-          ${allowUpdate?`<button class="icon-btn" title="Edit" data-act="edit">${icon('edit')}</button>`:''}
-          ${allowDelete?`<button class="icon-btn" title="Delete" data-act="del">${icon('trash')}</button>`:''}
-        </td>`;
-      const btnE = tr.querySelector('[data-act="edit"]');
-      const btnD = tr.querySelector('[data-act="del"]');
+          ${allowUpdate ? `<button class="icon-btn" data-act="edit">✎</button>` : ""}
+          ${allowDelete ? `<button class="icon-btn" data-act="del">🗑</button>` : ""}
+        </td>
+      `;
 
-      if (btnE) btnE.onclick = async ()=>{
-        let current = u; try{ current = await getUser(u.id); }catch{}
+      // editar
+      tr.querySelector('[data-act="edit"]')?.addEventListener("click", async () => {
+        let current = await getUser(u.id);
         openModal(
-          'Edit user #'+u.id,
-          (body)=>{
+          "Edit User #" + u.id,
+          body => {
             body.innerHTML = `
-              <label>Username</label>
-              <input id="mUUserName" value="${(current.username||'').replace(/"/g,'&quot;')}">
-              <label>Name</label>
-              <input id="mUName" type="name" value="${(current.name||'').replace(/"/g,'&quot;')}">
-              <label>Email</label>
-              <input id="mUEmail" type="email" value="${(current.email||'').replace(/"/g,'&quot;')}">
-              <label for="mUActive">Active</label>
+              <label>Username</label><input id="mUUserName" value="${current.username}">
+              <label>Name</label><input id="mUName" value="${current.name}">
+              <label>Email</label><input id="mUEmail" value="${current.email}">
+              <label>Active</label>
               <select id="mUActive">
-                <option value="Yes" ${current.active === 'Yes' ? 'selected' : ''}>Yes</option>
-                <option value="No"  ${current.active === 'No'  ? 'selected' : ''}>No</option>
-              </select>`;
+                <option value="Yes" ${current.active === "Yes" ? "selected" : ""}>Yes</option>
+                <option value="No"  ${current.active === "No" ? "selected" : ""}>No</option>
+              </select>
+            `;
           },
-          async ()=>{
-            const username = document.getElementById('mUUserName').value.trim();
-            const name     = document.getElementById('mUName').value.trim();
-            const email    = document.getElementById('mUEmail').value.trim();
-            const active   = document.getElementById('mUActive').value.trim();
-            if (!username) throw new Error('Username is required');
-            await updateUser(u.id, { id: u.id, username, name, email, active });
-            showMsgFromPane(pane,'User updated.'); await reload();
-          },
-          { confirmText: 'Save changes' }
+          async () => {
+            const dto = {
+              id: u.id,
+              username: mUUserName.value.trim(),
+              name: mUName.value.trim(),
+              email: mUEmail.value.trim(),
+              active: mUActive.value
+            };
+            await updateUser(u.id, dto);
+            await reload();
+          }
         );
-      };
+      });
 
-      if (btnD) btnD.onclick = ()=>{
+      // delete
+      tr.querySelector('[data-act="del"]')?.addEventListener("click", () => {
         openConfirm(
-          'Confirm deletion',
-          `<p>Are you sure you want to delete user <strong>${u.username||('User#'+u.id)}</strong>?</p>
-           <p style="font-size:smaller;color:#666;">This will deactivate the user (soft delete).</p>`,
+          "Delete User",
+          `<p>Are you sure you want to delete <strong>${u.username}</strong>?</p>`,
           async () => {
             await deleteUser(u.id);
-            showMsgFromPane(pane,'User deleted.');
             await reload();
-          },
-          { confirmText: 'Delete', confirmClass: 'danger' }
+          }
         );
-      };
+      });
 
       tb.appendChild(tr);
     }
-    renderPager(pane.querySelector('#uPager'), { total, page, pages }, (p)=>{ page=p; fill(); });
+
+    renderPager(pane.querySelector("#uPager"), { total, page, pages }, p => {
+      page = p;
+      fill();
+    });
   }
 
-  const addBtn = pane.querySelector('#uNew');
-  if (addBtn) addBtn.onclick = ()=>{
+  pane.querySelector("#uNew")?.addEventListener("click", () => {
     openModal(
-      'New user',
-      (body)=>{
+      "New User",
+      body => {
         body.innerHTML = `
-          <label>Username</label><input id="mUUserName" placeholder="username">
-          <label>Complete Name</label><input id="mUName" placeholder="name">
-          <label>Email</label><input id="nUEmail" type="email" placeholder="email@example.com">
-          <label>Password</label><input id="nUPwd" type="password" placeholder="initial password">
-          <label for="nUActive">Active</label>
-            <select id="nUActive">
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
-            </select>`;
+          <label>Username</label><input id="nUUser">
+          <label>Name</label><input id="nUName">
+          <label>Email</label><input id="nUEmail">
+          <label>Password</label><input id="nUPwd" type="password">
+          <label>Active</label>
+          <select id="nUActive"><option>Yes</option><option>No</option></select>
+        `;
       },
-      async ()=>{
-        const username = document.getElementById('mUUserName').value.trim();
-        const name     = document.getElementById('mUName').value.trim();
-        const email    = document.getElementById('nUEmail').value.trim();
-        const password = document.getElementById('nUPwd').value.trim();
-        const active   = document.getElementById('nUActive').value.trim();
-
-        if (!username) throw new Error('Username is required');
-        if (!password) throw new Error('Password is required');
-
-        await createUser({ username, name, email, password, active });
-        showMsgFromPane(pane,'User created.'); await reload();
-      },
-      { confirmText: 'Create user' }
+      async () => {
+        await createUser({
+          username: nUUser.value.trim(),
+          name: nUName.value.trim(),
+          email: nUEmail.value.trim(),
+          password: nUPwd.value.trim(),
+          active: nUActive.value
+        });
+        await reload();
+      }
     );
-  };
+  });
 
   await reload();
 }
 
-/* ---------- ROLES (com paginação) ---------- */
-async function renderRoles(pane){
-  const allowCreate = can('Roles.Create');
-  const allowUpdate = can('Roles.Update');
-  const allowDelete = can('Roles.Delete');
+/* -----------------------------------------------------------------
+   RENDER ROLES
+------------------------------------------------------------------ */
+
+async function renderRoles(pane) {
+  const allowCreate = can("Roles.Create");
+  const allowUpdate = can("Roles.Update");
+  const allowDelete = can("Roles.Delete");
 
   pane.innerHTML = `
     <div class="view-header">
       <h3>Roles</h3>
-      ${allowCreate?`<button class="icon-btn" id="rNew" title="New role">${icon('plus')}</button>`:''}
+      ${allowCreate ? `<button class="icon-btn" id="rNew">+</button>` : ""}
     </div>
-    <div class="table-wrap">
+
+    <div class="table-wrap compact-table">
       <table class="table">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Description</th>
-            <th>Active</th>
-            <th>Creation Dt</th>
-            <th>Created By</th>
-            <th>Update Dt</th>
-            <th>Updated By</th>
-            <th style="width:110px; text-align:right;"></th>
+            <th>ID</th><th>Name</th><th>Description</th><th>Active</th>
+            <th>Creation Dt</th><th>Created By</th><th>Update Dt</th><th>Updated By</th><th></th>
           </tr>
-          </thead>
+        </thead>
         <tbody id="rBody"></tbody>
       </table>
     </div>
     <div id="rPager"></div>
   `;
 
-  let page = 1, roles=[];
-  async function reload(){ try{ roles = await listRoles(); }catch(e){ showMsgFromPane(pane, errorToString(e), true); roles=[]; } fill(); }
-  function fill(){
-    const tb = pane.querySelector('#rBody'); tb.innerHTML='';
-    const { items, total, pages } = paginate(roles, page, getPageSize());
-    for (const r of items){
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${r.id}</td>
-        <td>${r.name||''}</td>
-        <td>${r.description||''}</td>
-        <td>${r.active||''}</td>
-        <td>${formatDateToBR(r.creationDt)}</td>
-        <td>${r.createdByName ?? ''}</td>
-        <td>${formatDateToBR(r.updateDt)}</td>
-        <td>${r.updatedByName ?? ''}</td>
-        <td style="text-align:right;">
-          ${allowUpdate?`<button class="icon-btn" title="Edit" data-act="edit">${icon('edit')}</button>`:''}
-          ${allowDelete?`<button class="icon-btn" title="Delete" data-act="del">${icon('trash')}</button>`:''}
-        </td>`;
-      tr.querySelector('[data-act="edit"]')?.addEventListener('click', ()=>{
-        openModal(
-          'Edit role #'+r.id,
-          (body)=>{
-            body.innerHTML = `
-              <label>Name</label>
-              <input id="mRName" value="${(r.name||'').replace(/"/g,'&quot;')}">
-              <label>Description</label>
-              <textarea id="mRDesc" rows="3">${r.description||''}</textarea>
-              <label for="mRActive">Active</label>
-              <select id="mRActive">
-                <option value="Yes" ${r.active === 'Yes' ? 'selected' : ''}>Yes</option>
-                <option value="No"  ${r.active === 'No'  ? 'selected' : ''}>No</option>
-              </select>`;
-          },
-          async ()=>{
-            const name = document.getElementById('mRName').value.trim();
-            const description = document.getElementById('mRDesc').value.trim();
-            const active = document.getElementById('mRActive').value.trim();
-            if (!name) throw new Error('Name is required');
-            await updateRole(r.id, { id:r.id, name, description, active });
-            showMsgFromPane(pane,'Role updated.'); await reload();
-          },
-          { confirmText: 'Save changes' }
-        );
-      });
-      tr.querySelector('[data-act="del"]')?.addEventListener('click', ()=>{
-        openConfirm(
-          'Delete role',
-          `<p>Delete role <strong>${r.name}</strong>?</p>`,
-          async ()=>{
-            await deleteRole(r.id);
-            showMsgFromPane(pane,'Role deleted.'); await reload();
-          },
-          { confirmText: 'Delete', confirmClass: 'danger' }
-        );
-      });
-      tb.appendChild(tr);
-    }
-    renderPager(pane.querySelector('#rPager'), { total, page, pages }, (p)=>{ page=p; fill(); });
+  let page = 1;
+  let roles = [];
+
+  async function reload() {
+    roles = await listRoles();
+    fill();
   }
 
-  const addBtn = pane.querySelector('#rNew');
-  if (addBtn) addBtn.onclick = ()=>{
+  function fill() {
+    const tb = pane.querySelector("#rBody");
+    tb.innerHTML = "";
+
+    const { items, total, pages } = paginate(roles, page, getPageSize());
+
+    for (const r of items) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${r.id}</td>
+        <td>${r.name}</td>
+        <td>${r.description}</td>
+        <td>${r.active}</td>
+        <td>${formatDateToBR(r.creationDt)}</td>
+        <td>${r.createdByName ?? ""}</td>
+        <td>${formatDateToBR(r.updateDt)}</td>
+        <td>${r.updatedByName ?? ""}</td>
+        <td>
+          ${allowUpdate ? `<button class="icon-btn" data-act="edit">✎</button>` : ""}
+          ${allowDelete ? `<button class="icon-btn" data-act="del">🗑</button>` : ""}
+        </td>
+      `;
+
+      // editar
+      tr.querySelector('[data-act="edit"]')?.addEventListener("click", () => {
+        openModal(
+          "Edit Role #" + r.id,
+          body => {
+            body.innerHTML = `
+              <label>Name</label><input id="mRName" value="${r.name}">
+              <label>Description</label><textarea id="mRDesc">${r.description ?? ""}</textarea>
+              <label>Active</label>
+              <select id="mRActive">
+                <option value="Yes" ${r.active === "Yes" ? "selected" : ""}>Yes</option>
+                <option value="No"  ${r.active === "No" ? "selected" : ""}>No</option>
+              </select>
+            `;
+          },
+          async () => {
+            await updateRole(r.id, {
+              id: r.id,
+              name: mRName.value.trim(),
+              description: mRDesc.value.trim(),
+              active: mRActive.value
+            });
+            await reload();
+          }
+        );
+      });
+
+      // deletar
+      tr.querySelector('[data-act="del"]')?.addEventListener("click", () => {
+        openConfirm(
+          "Delete Role",
+          `<p>Delete role <strong>${r.name}</strong>?</p>`,
+          async () => {
+            await deleteRole(r.id);
+            await reload();
+          }
+        );
+      });
+
+      tb.appendChild(tr);
+    }
+
+    renderPager(pane.querySelector("#rPager"), { total, page, pages }, p => {
+      page = p;
+      fill();
+    });
+  }
+
+  pane.querySelector("#rNew")?.addEventListener("click", () => {
     openModal(
-      'New role',
-      (body)=>{
+      "New Role",
+      body => {
         body.innerHTML = `
-          <label>Name</label><input id="nRName" placeholder="Role name">
-          <label>Description</label><textarea id="nRDesc" rows="3" placeholder="Description (optional)"></textarea>`;
+            <label>Name</label><input id="nRName">
+            <label>Description</label><textarea id="nRDesc"></textarea>
+        `;
       },
-      async ()=>{
-        const name = document.getElementById('nRName').value.trim();
-        const description = document.getElementById('nRDesc').value.trim();
-        if (!name) throw new Error('Name is required');
-        await createRole({ name, description });
-        showMsgFromPane(pane,'Role created.'); await reload();
-      },
-      { confirmText: 'Create role' }
+      async () => {
+        await createRole({
+          name: nRName.value.trim(),
+          description: nRDesc.value.trim()
+        });
+        await reload();
+      }
     );
-  };
+  });
 
   await reload();
 }
 
-/* ---------- PERMISSIONS (subtabs + paginação) ---------- */
-async function renderPermissions(pane){
-  const allowCreate = can('Permissions.Create');
-  const allowUpdate = can('Permissions.Update');
-  const allowDelete = can('Permissions.Delete');
+/* -----------------------------------------------------------------
+   RENDER PERMISSIONS
+------------------------------------------------------------------ */
+
+async function renderPermissions(pane) {
+  const allowCreate = can("Permissions.Create");
+  const allowUpdate = can("Permissions.Update");
+  const allowDelete = can("Permissions.Delete");
 
   pane.innerHTML = `
     <div class="view-header">
       <h3>Permissions</h3>
-      ${allowCreate?`<button class="icon-btn" id="pNew" title="New permission">${icon('plus')}</button>`:''}
+      ${allowCreate ? `<button class="icon-btn" id="pNew">+</button>` : ""}
     </div>
+    <div id="perm-tabs" class="tabs"></div>
 
-    <div id="perm-tabs" class="tabs" style="margin-top:6px;"></div>
-
-    <div class="table-wrap" style="margin-top:8px;">
+    <div class="table-wrap compact-table">
       <table class="table">
         <thead>
           <tr>
-            <th style="width:72px;">ID</th>
-            <th>Permission</th>
-            <th>Description</th>
-            <th>Active</th>
-            <th>Creation Dt</th>
-            <th>Created By</th>
-            <th>Update Dt</th>
-            <th>Updated By</th>
-            <th style="width:110px; text-align:right;"></th>
+            <th>ID</th><th>Permission</th><th>Description</th><th>Active</th>
+            <th>CreationDt</th><th>CreatedBy</th><th>UpdateDt</th><th>UpdatedBy</th><th></th>
           </tr>
         </thead>
         <tbody id="pBody"></tbody>
@@ -401,359 +419,386 @@ async function renderPermissions(pane){
     <div id="pPager"></div>
   `;
 
-  let allPerms = [], groupMap = new Map(), groups = [], activeGroup = 'General', page = 1;
+  let allPerms = [];
+  let groupMap = new Map();
+  let groups = [];
+  let activeGroup = "General";
+  let page = 1;
 
-  function buildGroups(){
+  async function reload() {
+    allPerms = await listPermissions();
+    buildGroups();
+    paintTabs();
+    fillTable();
+  }
+
+  function buildGroups() {
     groupMap = new Map();
-    for (const p of allPerms){
-      const name = String(p.name || '');
-      const dot = name.indexOf('.');
-      const g = dot > 0 ? name.slice(0, dot) : (name || 'General');
+    for (const p of allPerms) {
+      const name = p.name || "";
+      const idx = name.indexOf(".");
+      const g = idx > 0 ? name.slice(0, idx) : "General";
+
       if (!groupMap.has(g)) groupMap.set(g, []);
       groupMap.get(g).push(p);
     }
-    groups = Array.from(groupMap.keys()).sort((a,b)=>a.localeCompare(b));
-    if (!groups.length) groups = ['General'];
+
+    groups = [...groupMap.keys()].sort();
     if (!groupMap.has(activeGroup)) activeGroup = groups[0];
   }
 
-  function paintTabs(){
-    const host = pane.querySelector('#perm-tabs');
-    host.innerHTML = '';
-    for (const g of groups){
-      const b = document.createElement('button');
-      b.type='button';
-      b.className = 'tab' + (g===activeGroup ? ' active' : '');
-      b.textContent = g;
-      b.addEventListener('click', ()=>{
-        activeGroup = g; page = 1;
-        paintTabs(); fillTable();
-      });
-      host.appendChild(b);
+  function paintTabs() {
+    const host = pane.querySelector("#perm-tabs");
+    host.innerHTML = "";
+
+    for (const g of groups) {
+      const btn = document.createElement("button");
+      btn.className = "tab" + (g === activeGroup ? " active" : "");
+      btn.textContent = g;
+      btn.onclick = () => {
+        activeGroup = g;
+        page = 1;
+        paintTabs();
+        fillTable();
+      };
+      host.appendChild(btn);
     }
   }
 
-  function permsOfActive(){
-    const list = (groupMap.get(activeGroup) || []).slice();
-    list.sort((a,b)=> String(a.name||'').localeCompare(String(b.name||'')));
-    return list;
+  function permsOfGroup() {
+    return (groupMap.get(activeGroup) || []).sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "")
+    );
   }
 
-  function fillTable(){
-    const tb = pane.querySelector('#pBody'); tb.innerHTML = '';
-    const list = permsOfActive();
+  function fillTable() {
+    const tb = pane.querySelector("#pBody");
+    tb.innerHTML = "";
+
+    const list = permsOfGroup();
     const { items, total, pages } = paginate(list, page, getPageSize());
 
-    for (const p of items){
-      const tr = document.createElement('tr');
+    for (const p of items) {
+      const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${p.id}</td>
-        <td>${p.name || ''}</td>
-        <td>${p.description || ''}</td>
+        <td>${p.name}</td>
+        <td>${p.description}</td>
         <td>${p.active}</td>
         <td>${formatDateToBR(p.creationDt)}</td>
-        <td>${p.createdByName ?? ''}</td>
+        <td>${p.createdByName ?? ""}</td>
         <td>${formatDateToBR(p.updateDt)}</td>
-        <td>${p.updatedByName ?? ''}</td>
-        <td style="text-align:right;">
-          ${allowUpdate?`<button class="icon-btn" title="Edit" data-act="edit">${icon('edit')}</button>`:''}
-          ${allowDelete?`<button class="icon-btn" title="Delete" data-act="del">${icon('trash')}</button>`:''}
+        <td>${p.updatedByName ?? ""}</td>
+        <td>
+          ${allowUpdate ? `<button class="icon-btn" data-act="edit">✎</button>` : ""}
+          ${allowDelete ? `<button class="icon-btn" data-act="del">🗑</button>` : ""}
         </td>
       `;
 
-      tr.querySelector('[data-act="edit"]')?.addEventListener('click', ()=>{
+      tr.querySelector('[data-act="edit"]')?.addEventListener("click", () => {
         openModal(
-          'Edit permission #'+p.id,
-          (body)=>{
+          "Edit Permission #" + p.id,
+          body => {
             body.innerHTML = `
-              <label>Name</label>
-              <input id="mPName" value="${(p.name||'').replace(/"/g,'&quot;')}">
-              <label>Description</label>
-              <textarea id="mPDesc" rows="3">${p.description||''}</textarea>
-              <label for="mPActive">Active</label>
+              <label>Name</label><input id="mPName" value="${p.name}">
+              <label>Description</label><textarea id="mPDesc">${p.description ?? ""}</textarea>
+              <label>Active</label>
               <select id="mPActive">
-                <option value="Yes" ${p.active === 'Yes' ? 'selected' : ''}>Yes</option>
-                <option value="No"  ${p.active === 'No'  ? 'selected' : ''}>No</option>
+                <option value="Yes" ${p.active === "Yes" ? "selected" : ""}>Yes</option>
+                <option value="No"  ${p.active === "No" ? "selected" : ""}>No</option>
               </select>
-              `;
+            `;
           },
-          async ()=>{
-            const name = document.getElementById('mPName').value.trim();
-            const description = document.getElementById('mPDesc').value.trim();
-            const active = document.getElementById('mPActive').value.trim();
-            if (!name) throw new Error('Name is required');
-            await updatePermission(p.id, { id:p.id, name, description, active });
-            await reload(); showMsgFromPane(pane,'Permission updated.');
-          },
-          { confirmText: 'Save changes' }
+          async () => {
+            await updatePermission(p.id, {
+              id: p.id,
+              name: mPName.value.trim(),
+              description: mPDesc.value.trim(),
+              active: mPActive.value
+            });
+            await reload();
+          }
         );
       });
 
-      tr.querySelector('[data-act="del"]')?.addEventListener('click', ()=>{
+      tr.querySelector('[data-act="del"]')?.addEventListener("click", () => {
         openConfirm(
-          `Delete permission`,
-          `<p>Delete permission <strong>${p.name}</strong>?</p>`,
-          async ()=>{
+          "Delete Permission",
+          `<p>Delete <strong>${p.name}</strong>?</p>`,
+          async () => {
             await deletePermission(p.id);
             await reload();
-            showMsgFromPane(pane,'Permission deleted.');
-          },
-          { confirmText: 'Delete', confirmClass: 'danger' }
+          }
         );
       });
 
       tb.appendChild(tr);
     }
 
-    renderPager(pane.querySelector('#pPager'), { total, page, pages }, (p)=>{ page=p; fillTable(); });
+    renderPager(pane.querySelector("#pPager"), { total, page, pages }, p => {
+      page = p;
+      fillTable();
+    });
   }
 
-  async function reload(){
-    try{ allPerms = await listPermissions(); }catch(e){ showMsgFromPane(pane, errorToString(e), true); allPerms = []; }
-    buildGroups(); paintTabs(); fillTable();
-  }
+  // NEW PERMISSION
+  pane.querySelector("#pNew")?.addEventListener("click", () => {
+    const defaultGroup = activeGroup !== "General" ? activeGroup + "." : "";
 
-  const addBtn = pane.querySelector('#pNew');
-  if (addBtn) addBtn.onclick = ()=>{
-    const defaultName = activeGroup && activeGroup !== 'General' ? `${activeGroup}.` : '';
     openModal(
-      'New permission',
-      (body)=>{
+      "New Permission",
+      body => {
         body.innerHTML = `
-          <label>Name</label><input id="nPName" placeholder="e.g. Items.Read" value="${defaultName}">
-          <label>Description</label><textarea id="nPDesc" rows="3" placeholder="Description (optional)"></textarea>`;
+          <label>Name</label><input id="nPName" value="${defaultGroup}">
+          <label>Description</label><textarea id="nPDesc"></textarea>
+        `;
       },
-      async ()=>{
-        const name = document.getElementById('nPName').value.trim();
-        const description = document.getElementById('nPDesc').value.trim();
-        if (!name) throw new Error('Name is required');
-        await createPermission({ name, description });
-        await reload(); showMsgFromPane(pane,'Permission created.');
-      },
-      { confirmText: 'Create permission' }
+      async () => {
+        await createPermission({
+          name: nPName.value.trim(),
+          description: nPDesc.value.trim()
+        });
+        await reload();
+      }
     );
-  };
+  });
 
   await reload();
 }
 
-/* ---------- ROLE × PERMISSIONS (grupos + paginação) ---------- */
-async function renderRolePermissions(pane){
-  if (!can('RolePermissions.Assign')){
-    pane.innerHTML = `<div class="alert error">Sem permissão.</div>`;
+/* -----------------------------------------------------------------
+   ROLE × PERMISSIONS
+------------------------------------------------------------------ */
+
+async function renderRolePermissions(pane) {
+  if (!can("RolePermissions.Assign")) {
+    pane.innerHTML = `<div class="alert error">No permission.</div>`;
     return;
   }
-
-  pane.innerHTML = `
-    <div class="view-header" style="gap:12px; flex-wrap:wrap; align-items:center;">
-      <h3>Role × Permissions</h3>
-      <label style="margin-left:auto; display:flex; align-items:center; gap:8px;">
-        <span>Role</span>
-        <select id="rp-role" style="min-height:32px;"></select>
-      </label>
-    </div>
-    <div id="rp-tabs" class="tabs" style="margin-top:6px;"></div>
-    <div id="rp-grid" style="margin-top:10px;"></div>
-    <div style="margin-top:12px;">
-      <button class="primary" id="rp-save">Save</button>
-    </div>
-  `;
 
   const roles = await listRoles();
   const allPerms = await listPermissions();
 
-  const groupMap = new Map();
-  for (const p of allPerms) {
-    const name = String(p.name || '');
-       const dot = name.indexOf('.');
-    const group = dot > 0 ? name.slice(0, dot) : (name || 'General');
-    if (!groupMap.has(group)) groupMap.set(group, []);
-    groupMap.get(group).push(p);
-  }
-  const groups = Array.from(groupMap.keys()).sort((a,b)=>a.localeCompare(b));
-
-  let activeRoleId = roles?.[0]?.id ?? null;
-  let activeGroup  = groups[0] || 'General';
+  let activeRoleId = roles[0]?.id;
   let selected = new Set();
+  let groupMap = new Map();
+  let groups = [];
+  let activeGroup = "General";
   let page = 1;
 
-  const selRole = pane.querySelector('#rp-role');
-  selRole.innerHTML = roles.map(r => `<option value="${r.id}" ${r.id===activeRoleId?'selected':''}>${r.name}</option>`).join('');
-  selRole.onchange = async () => { activeRoleId = Number(selRole.value); await loadRolePerms(); renderGrid(); };
+  pane.innerHTML = `
+    <div class="view-header" style="gap:12px">
+      <h3>Role × Permissions</h3>
+      <label style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+        <span>Role</span>
+        <select id="rp-role"></select>
+      </label>
+    </div>
 
-  const tabsHost = pane.querySelector('#rp-tabs');
-  function paintGroupTabs() {
-    tabsHost.innerHTML = '';
+    <div id="rp-tabs" class="tabs"></div>
+    <div id="rp-grid"></div>
+    <button class="primary" id="rp-save" style="margin-top:12px">Save</button>
+  `;
+
+  const sel = pane.querySelector("#rp-role");
+  sel.innerHTML = roles.map(r => `<option value="${r.id}">${r.name}</option>`);
+  sel.value = activeRoleId;
+
+  // Organiza grupos
+  for (const p of allPerms) {
+    const name = p.name || "";
+    const idx = name.indexOf(".");
+    const g = idx > 0 ? name.slice(0, idx) : "General";
+
+    if (!groupMap.has(g)) groupMap.set(g, []);
+    groupMap.get(g).push(p);
+  }
+
+  groups = [...groupMap.keys()].sort();
+
+  async function loadSelected() {
+    const rp = await listRolePermissions(activeRoleId);
+    selected = new Set(rp.map(x => x.permissionId ?? x.id));
+  }
+
+  function paintTabs() {
+    const host = pane.querySelector("#rp-tabs");
+    host.innerHTML = "";
+
     for (const g of groups) {
-      const b = document.createElement('button');
-      b.type='button';
-      b.className = 'tab' + (g===activeGroup ? ' active' : '');
+      const b = document.createElement("button");
+      b.className = "tab" + (g === activeGroup ? " active" : "");
       b.textContent = g;
-      b.addEventListener('click', ()=>{
-        activeGroup = g; page = 1;
-        paintGroupTabs();
+      b.onclick = () => {
+        activeGroup = g;
+        page = 1;
+        paintTabs();
         renderGrid();
-      });
-      tabsHost.appendChild(b);
+      };
+      host.appendChild(b);
     }
   }
 
-  async function loadRolePerms(){
-    if (!activeRoleId){ selected = new Set(); return; }
-    const rp = await listRolePermissions(activeRoleId);
-    const ids = rp?.map?.(x => x.id ?? x.permissionId ?? x) ?? [];
-    selected = new Set(ids.map(Number));
-  }
+  function renderGrid() {
+    const grid = pane.querySelector("#rp-grid");
 
-  function renderGrid(){
-    const wrap = pane.querySelector('#rp-grid');
-    wrap.innerHTML = `
-      <div class="table-wrap">
+    const perms = (groupMap.get(activeGroup) || []).sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "")
+    );
+
+    const { items, total, pages } = paginate(perms, page, getPageSize());
+
+    grid.innerHTML = `
+      <div class="table-wrap compact-table">
         <table class="table">
           <thead>
-            <tr>
-              <th style="width:64px;">Allow</th>
-              <th>Permission</th>
-              <th>Description</th>
-            </tr>
+            <tr><th>Allow</th><th>Permission</th><th>Description</th></tr>
           </thead>
-          <tbody id="rp-tbody"></tbody>
+          <tbody id="rpBody"></tbody>
         </table>
       </div>
       <div id="rpPager"></div>
     `;
 
-    const permsOfGroup = (groupMap.get(activeGroup) || []).slice()
-      .sort((a,b)=> String(a.name||'').localeCompare(String(b.name||'')));
+    const tb = grid.querySelector("#rpBody");
 
-    const { items, total, pages } = paginate(permsOfGroup, page, getPageSize());
-    const tb = wrap.querySelector('#rp-tbody');
-
-    for (const p of items){
-      const tr = document.createElement('tr');
-      const checked = selected.has(p.id) ? 'checked' : '';
+    for (const p of items) {
+      const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td><input type="checkbox" data-id="${p.id}" ${checked}></td>
-        <td>${p.name || ''}</td>
-        <td>${p.description || ''}</td>
+        <td><input type="checkbox" data-id="${p.id}" ${selected.has(p.id) ? "checked" : ""}></td>
+        <td>${p.name}</td>
+        <td>${p.description}</td>
       `;
-      tr.querySelector('input[type="checkbox"]').addEventListener('change', (e)=>{
-        const pid = Number(e.target.getAttribute('data-id'));
-        if (e.target.checked) selected.add(pid); else selected.delete(pid);
-      });
+
+      tr.querySelector("input").onclick = e => {
+        const id = Number(e.target.dataset.id);
+        if (e.target.checked) selected.add(id);
+        else selected.delete(id);
+      };
+
       tb.appendChild(tr);
     }
 
-    renderPager(pane.querySelector('#rpPager'), { total, page, pages }, (p)=>{ page=p; renderGrid(); });
+    renderPager(grid.querySelector("#rpPager"), { total, page, pages }, p => {
+      page = p;
+      renderGrid();
+    });
   }
 
-  async function save(){
-    try{
-      if (!activeRoleId) return;
-      const dto = { roleId: activeRoleId, permissionIds: Array.from(selected) };
-      await assignRolePermissions(dto);
-      showMsgFromPane(pane,'Saved.');
-    }catch(e){ showMsgFromPane(pane, errorToString(e), true); }
-  }
+  pane.querySelector("#rp-save").onclick = async () => {
+    await assignRolePermissions({
+      roleId: activeRoleId,
+      permissionIds: [...selected]
+    });
+  };
 
-  pane.querySelector('#rp-save').addEventListener('click', save);
+  sel.onchange = async () => {
+    activeRoleId = Number(sel.value);
+    await loadSelected();
+    renderGrid();
+  };
 
-  paintGroupTabs();
-  await loadRolePerms();
+  paintTabs();
+  await loadSelected();
   renderGrid();
 }
 
-/* ---------- USER × ROLES (alinhado + paginação) ---------- */
-async function renderUserRoles(pane){
-  if (!can('UserRoles.Assign')){
-    pane.innerHTML = `<div class="alert error">Sem permissão.</div>`;
+/* -----------------------------------------------------------------
+   USER × ROLES
+------------------------------------------------------------------ */
+
+async function renderUserRoles(pane) {
+  if (!can("UserRoles.Assign")) {
+    pane.innerHTML = `<div class="alert error">No permission.</div>`;
     return;
   }
 
-  pane.innerHTML = `
-    <div class="view-header" style="gap:12px; flex-wrap:wrap; align-items:center;">
-      <h3>User × Roles</h3>
-      <label style="margin-left:auto; display:flex; align-items:center; gap:8px;">
-        <span>User</span>
-        <select id="ur-user" style="min-height:32px;"></select>
-      </label>
-    </div>
-    <div id="ur-grid" style="margin-top:10px;"></div>
-    <div style="margin-top:12px;">
-      <button class="primary" id="ur-save">Save</button>
-    </div>
-  `;
-
   const users = await listUsers();
-  const roles = (await listRoles()).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  const roles = (await listRoles()).sort((a, b) =>
+    (a.name || "").localeCompare(b.name || "")
+  );
 
-  let activeUserId = users?.[0]?.id ?? null;
+  let activeUserId = users[0]?.id;
   let selected = new Set();
   let page = 1;
 
-  const sel = pane.querySelector('#ur-user');
-  sel.innerHTML = users.map(u =>
-    `<option value="${u.id}" ${u.id===activeUserId?'selected':''}>${u.username || u.email || ('User#'+u.id)}</option>`
-  ).join('');
-  sel.onchange = async () => { activeUserId = Number(sel.value); await loadUserRoles(); renderGrid(); };
+  pane.innerHTML = `
+    <div class="view-header" style="gap:12px">
+      <h3>User × Roles</h3>
+      <label style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+        <span>User</span>
+        <select id="ur-user"></select>
+      </label>
+    </div>
 
-  async function loadUserRoles(){
-    if (!activeUserId){ selected = new Set(); return; }
+    <div id="ur-grid"></div>
+    <button class="primary" id="ur-save" style="margin-top:12px">Save</button>
+  `;
+
+  const sel = pane.querySelector("#ur-user");
+  sel.innerHTML = users
+    .map(u => `<option value="${u.id}">${u.username}</option>`)
+    .join("");
+  sel.value = activeUserId;
+
+  async function loadSelected() {
     const ur = await listUserRoles(activeUserId);
-    const ids = ur?.map?.(x => x.id ?? x.roleId ?? x) ?? [];
-    selected = new Set(ids.map(Number));
+    selected = new Set(ur.map(x => x.roleId ?? x.id));
   }
 
-  function renderGrid(){
-    const wrap = pane.querySelector('#ur-grid');
-    wrap.innerHTML = `
-      <div class="table-wrap">
+  function renderGrid() {
+    const grid = pane.querySelector("#ur-grid");
+
+    const { items, total, pages } = paginate(roles, page, getPageSize());
+
+    grid.innerHTML = `
+      <div class="table-wrap compact-table">
         <table class="table">
-          <thead>
-            <tr>
-              <th style="width:64px;">Allow</th>
-              <th>Role</th>
-              <th>Description</th>
-            </tr>
-          </thead>
-          <tbody id="ur-tbody"></tbody>
+          <thead><tr><th>Allow</th><th>Role</th><th>Description</th></tr></thead>
+          <tbody id="urBody"></tbody>
         </table>
       </div>
       <div id="urPager"></div>
     `;
 
-    const { items, total, pages } = paginate(roles, page, getPageSize());
-    const tb = wrap.querySelector('#ur-tbody');
+    const tb = grid.querySelector("#urBody");
 
-    for (const r of items){
-      const tr = document.createElement('tr');
-      const checked = selected.has(r.id) ? 'checked' : '';
+    for (const r of items) {
+      const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td><input type="checkbox" data-id="${r.id}" ${checked}></td>
-        <td>${r.name || ''}</td>
-        <td>${r.description || ''}</td>
+        <td><input type="checkbox" data-id="${r.id}" ${selected.has(r.id) ? "checked" : ""}></td>
+        <td>${r.name}</td>
+        <td>${r.description}</td>
       `;
-      tr.querySelector('input[type="checkbox"]').addEventListener('change', (e)=>{
-        const rid = Number(e.target.getAttribute('data-id'));
-        if (e.target.checked) selected.add(rid); else selected.delete(rid);
-      });
+
+      tr.querySelector("input").onclick = e => {
+        const id = Number(e.target.dataset.id);
+        if (e.target.checked) selected.add(id);
+        else selected.delete(id);
+      };
+
       tb.appendChild(tr);
     }
 
-    renderPager(pane.querySelector('#urPager'), { total, page, pages }, (p)=>{ page=p; renderGrid(); });
+    renderPager(grid.querySelector("#urPager"), { total, page, pages }, p => {
+      page = p;
+      renderGrid();
+    });
   }
 
-  async function save(){
-    try{
-      if (!activeUserId) return;
-      const dto = { userId: activeUserId, roleIds: Array.from(selected) };
-      await assignUserRoles(dto);
-      showMsgFromPane(pane,'Saved.');
-    }catch(e){ showMsgFromPane(pane, errorToString(e), true); }
-  }
+  pane.querySelector("#ur-save").onclick = async () => {
+    await assignUserRoles({
+      userId: activeUserId,
+      roleIds: [...selected]
+    });
+  };
 
-  pane.querySelector('#ur-save').addEventListener('click', save);
+  sel.onchange = async () => {
+    activeUserId = Number(sel.value);
+    await loadSelected();
+    renderGrid();
+  };
 
-  await loadUserRoles();
+  await loadSelected();
   renderGrid();
 }

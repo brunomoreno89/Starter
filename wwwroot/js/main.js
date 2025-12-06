@@ -18,7 +18,6 @@ import { HolidaysView } from './views/holidays.js';
 //import { RegionsView } from './views/regions.js';
 //import { BranchesView } from './views/branches.js';
 
-
 function bootTheme(){
   const t = localStorage.getItem('theme') || 'dark';
   document.body.classList.toggle('light', t==='light');
@@ -43,8 +42,21 @@ addRoute('/holidays', HolidaysView, { auth:true, perm:'Holidays.Read' });
 //addRoute('/branches', BranchesView, { auth:true, perm:'Branches.Read' });
 
 function rerender(){
-  renderNavbar();
-  renderUserArea();
+  renderNavbar();   // já chama renderUserArea por dentro
+
+  const navbarEl = document.querySelector('.navbar');
+  if (!navbarEl) return;
+
+  const hash = (location.hash || '').replace('#/','');
+  const isLogin = hash === 'login' || hash === '' || hash === 'home';
+  const hideNav = !isSessionValid() || isLogin;
+
+  // esconde navbar apenas no login
+  navbarEl.style.display = hideNav ? 'none' : 'block';
+
+  // ajusta padding do body quando não houver navbar
+  document.body.classList.toggle('no-navbar', hideNav);
 }
+
 startRouter(rerender);
 rerender();

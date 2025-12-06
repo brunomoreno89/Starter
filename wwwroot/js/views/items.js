@@ -41,7 +41,7 @@ export async function ItemsView(container){
       ${auth.hasPerm('Items.Create') ? `<button class="icon-btn" id="btnNew" title="New item">${icon('plus')}</button>` : ''}
     </div>
     <div id="msg" class="alert hidden"></div>
-    <div class="table-wrap">
+    <div class="table-wrap compact-table">
       <table class="table">
         <thead>
           <tr>
